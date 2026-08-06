@@ -17,3 +17,5 @@ Keep that terminal running. It starts the browser app and a localhost-only usage
 The bridge listens only on `127.0.0.1:4318`. It reads local auth files server-side and never sends credentials to the browser. It refreshes provider data every 15 seconds.
 
 If one provider is unavailable, its row shows `localhost bridge offline` instead of fake data.
+
+Settings appear below the bars in the page. They change background opacity/color, both agent colors, bar height, and text size, and persist in this browser. Crop the OBS source above the settings section to show only the bars.

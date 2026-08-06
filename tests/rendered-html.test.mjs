@@ -23,6 +23,8 @@ test("server-renders the compact local overlay", async () => {
   assert.match(html, /CODEX/);
   assert.match(html, /CLAUDE/);
   assert.match(html, /Realtime/);
+  assert.match(html, /Overlay settings/);
+  assert.match(html, /Background opacity/);
   assert.match(html, /role="progressbar"/);
   assert.doesNotMatch(html, /Your site is taking shape|react-loading-skeleton|codex-preview|Usage overlay<\/h1>/);
 });
@@ -37,7 +39,8 @@ test("keeps provider credentials in the localhost bridge", async () => {
 
   assert.match(page, /127\.0\.0\.1:4318\/api\/usage/);
   assert.match(styles, /background:\s*transparent/);
-  assert.match(styles, /height: 5px/);
+  assert.match(styles, /var\(--bar-height/);
+  assert.match(styles, /var\(--panel-background/);
   assert.match(bridge, /backend-api\/wham\/usage/);
   assert.match(bridge, /claude/);
   assert.match(bridge, /no-session-persistence/);

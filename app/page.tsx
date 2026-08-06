@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 type AgentUsage = {
   available: boolean;
@@ -16,6 +16,15 @@ type UsageResponse = {
   updatedAt: string | null;
 };
 
+type AppearanceState = {
+  backgroundColor: string;
+  backgroundOpacity: number;
+  codexColor: string;
+  claudeColor: string;
+  barHeight: number;
+  textScale: number;
+};
+
 const BRIDGE_URL = "http://127.0.0.1:4318/api/usage";
 
 const EMPTY_USAGE: UsageResponse = {
@@ -23,6 +32,30 @@ const EMPTY_USAGE: UsageResponse = {
   claude: { available: false, usedPercent: null, resetAt: null, resetLabel: null },
   updatedAt: null,
 };
+
+const DEFAULT_APPEARANCE: AppearanceState = {
+  backgroundColor: "#08090d",
+  backgroundOpacity: 82,
+  codexColor: "#f2a65a",
+  claudeColor: "#b69bff",
+  barHeight: 5,
+  textScale: 100,
+};
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+function isHexColor(value: unknown): value is string {
+  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
+}
+
+function hexToRgba(hex: string, opacity: number) {
+  const red = Number.parseInt(hex.slice(1, 3), 16);
+  const green = Number.parseInt(hex.slice(3, 5), 16);
+  const blue = Number.parseInt(hex.slice(5, 7), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${opacity / 100})`;
+}
 
 function formatCountdown(resetAt: number | null, now: number) {
   if (!resetAt) return "reset time unavailable";
@@ -71,6 +104,30 @@ function UsageRow({
 export default function Home() {
   const [usage, setUsage] = useState<UsageResponse>(EMPTY_USAGE);
   const [now, setNow] = useState(() => Date.now());
+  const [appearance, setAppearance] = useState<AppearanceState>(DEFAULT_APPEARANCE);
+
+  useEffect(() => {
+    const loadTimer = window.setTimeout(() => {
+      const stored = window.localStorage.getItem("usage-overlay-appearance");
+      if (!stored) return;
+
+      try {
+        const parsed = JSON.parse(stored) as Partial<AppearanceState>;
+        setAppearance({
+          backgroundColor: isHexColor(parsed.backgroundColor) ? parsed.backgroundColor : DEFAULT_APPEARANCE.backgroundColor,
+          backgroundOpacity: clamp(Number(parsed.backgroundOpacity ?? DEFAULT_APPEARANCE.backgroundOpacity), 0, 100),
+          codexColor: isHexColor(parsed.codexColor) ? parsed.codexColor : DEFAULT_APPEARANCE.codexColor,
+          claudeColor: isHexColor(parsed.claudeColor) ? parsed.claudeColor : DEFAULT_APPEARANCE.claudeColor,
+          barHeight: clamp(Number(parsed.barHeight ?? DEFAULT_APPEARANCE.barHeight), 2, 12),
+          textScale: clamp(Number(parsed.textScale ?? DEFAULT_APPEARANCE.textScale), 80, 140),
+        });
+      } catch {
+        window.localStorage.removeItem("usage-overlay-appearance");
+      }
+    }, 0);
+
+    return () => window.clearTimeout(loadTimer);
+  }, []);
 
   useEffect(() => {
     let disposed = false;
@@ -107,21 +164,89 @@ export default function Home() {
     };
   }, []);
 
+  const updateAppearance = <Key extends keyof AppearanceState>(key: Key, value: AppearanceState[Key]) => {
+    const next = { ...appearance, [key]: value };
+    setAppearance(next);
+    window.localStorage.setItem("usage-overlay-appearance", JSON.stringify(next));
+  };
+
+  const resetAppearance = () => {
+    setAppearance(DEFAULT_APPEARANCE);
+    window.localStorage.removeItem("usage-overlay-appearance");
+  };
+
+  const overlayStyle = {
+    "--panel-background": hexToRgba(appearance.backgroundColor, appearance.backgroundOpacity),
+    "--codex-color": appearance.codexColor,
+    "--claude-color": appearance.claudeColor,
+    "--bar-height": `${appearance.barHeight}px`,
+    "--text-scale": appearance.textScale / 100,
+  } as CSSProperties;
+
   return (
-    <main className="overlay-shell">
-      <UsageRow
-        name="CODEX"
-        accent="codex"
-        usage={usage.codex}
-        resetText={`weekly · ${formatCountdown(usage.codex.resetAt, now)}`}
-      />
-      <UsageRow
-        name="CLAUDE"
-        accent="claude"
-        usage={usage.claude}
-        resetText={`session · ${usage.claude.resetLabel ?? formatCountdown(usage.claude.resetAt, now)}`}
-      />
-      <p className="bridge-status"><span className="bridge-status__dot" /> Realtime</p>
+    <main className="page-shell">
+      <section className="overlay-shell" style={overlayStyle} aria-label="AI usage bars">
+        <UsageRow
+          name="CODEX"
+          accent="codex"
+          usage={usage.codex}
+          resetText={`weekly · ${formatCountdown(usage.codex.resetAt, now)}`}
+        />
+        <UsageRow
+          name="CLAUDE"
+          accent="claude"
+          usage={usage.claude}
+          resetText={`session · ${usage.claude.resetLabel ?? formatCountdown(usage.claude.resetAt, now)}`}
+        />
+        <p className="bridge-status"><span className="bridge-status__dot" /> Realtime</p>
+      </section>
+
+      <section className="settings-panel" aria-label="Overlay settings">
+        <div className="settings-heading">
+          <div>
+            <p className="settings-kicker">LOCAL SETTINGS</p>
+            <h1>Overlay settings</h1>
+          </div>
+          <p className="crop-hint">Crop OBS above this section</p>
+        </div>
+
+        <div className="settings-grid">
+          <label className="setting-field" htmlFor="background-opacity">
+            <span>Background opacity <output>{appearance.backgroundOpacity}%</output></span>
+            <input id="background-opacity" type="range" min="0" max="100" value={appearance.backgroundOpacity} onChange={(event) => updateAppearance("backgroundOpacity", Number(event.target.value))} />
+          </label>
+
+          <label className="setting-field" htmlFor="bar-height">
+            <span>Bar height <output>{appearance.barHeight}px</output></span>
+            <input id="bar-height" type="range" min="2" max="12" value={appearance.barHeight} onChange={(event) => updateAppearance("barHeight", Number(event.target.value))} />
+          </label>
+
+          <label className="setting-field" htmlFor="text-scale">
+            <span>Text size <output>{appearance.textScale}%</output></span>
+            <input id="text-scale" type="range" min="80" max="140" value={appearance.textScale} onChange={(event) => updateAppearance("textScale", Number(event.target.value))} />
+          </label>
+
+          <label className="setting-field setting-field--color" htmlFor="background-color">
+            <span>Background color <output>{appearance.backgroundColor}</output></span>
+            <input id="background-color" className="color-input" type="color" value={appearance.backgroundColor} onChange={(event) => updateAppearance("backgroundColor", event.target.value)} />
+          </label>
+
+          <label className="setting-field setting-field--color" htmlFor="codex-color">
+            <span>Codex color <output>{appearance.codexColor}</output></span>
+            <input id="codex-color" className="color-input" type="color" value={appearance.codexColor} onChange={(event) => updateAppearance("codexColor", event.target.value)} />
+          </label>
+
+          <label className="setting-field setting-field--color" htmlFor="claude-color">
+            <span>Claude color <output>{appearance.claudeColor}</output></span>
+            <input id="claude-color" className="color-input" type="color" value={appearance.claudeColor} onChange={(event) => updateAppearance("claudeColor", event.target.value)} />
+          </label>
+        </div>
+
+        <div className="settings-footer">
+          <span>Saved in this browser</span>
+          <button type="button" onClick={resetAppearance}>Reset settings</button>
+        </div>
+      </section>
     </main>
   );
 }
