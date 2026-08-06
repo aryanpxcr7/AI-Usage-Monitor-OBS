@@ -22,7 +22,7 @@ test("server-renders the compact local overlay", async () => {
   assert.match(html, /<title>Local AI usage overlay<\/title>/i);
   assert.match(html, /CODEX/);
   assert.match(html, /CLAUDE/);
-  assert.match(html, /realtime · local only/);
+  assert.match(html, /Realtime/);
   assert.match(html, /role="progressbar"/);
   assert.doesNotMatch(html, /Your site is taking shape|react-loading-skeleton|codex-preview|Usage overlay<\/h1>/);
 });

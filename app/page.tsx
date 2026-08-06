@@ -121,7 +121,7 @@ export default function Home() {
         usage={usage.claude}
         resetText={`session · ${usage.claude.resetLabel ?? formatCountdown(usage.claude.resetAt, now)}`}
       />
-      <p className="bridge-status"><span className="bridge-status__dot" /> realtime · local only</p>
+      <p className="bridge-status"><span className="bridge-status__dot" /> Realtime</p>
     </main>
   );
 }
