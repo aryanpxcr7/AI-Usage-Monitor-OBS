@@ -38,7 +38,7 @@ const DEFAULT_APPEARANCE: AppearanceState = {
   backgroundOpacity: 82,
   codexColor: "#f2a65a",
   claudeColor: "#b69bff",
-  barHeight: 5,
+  barHeight: 7,
   textScale: 100,
 };
 
@@ -184,8 +184,8 @@ export default function Home() {
           backgroundOpacity: clamp(Number(parsed.backgroundOpacity ?? DEFAULT_APPEARANCE.backgroundOpacity), 0, 100),
           codexColor: isHexColor(parsed.codexColor) ? parsed.codexColor : DEFAULT_APPEARANCE.codexColor,
           claudeColor: isHexColor(parsed.claudeColor) ? parsed.claudeColor : DEFAULT_APPEARANCE.claudeColor,
-          barHeight: clamp(Number(parsed.barHeight ?? DEFAULT_APPEARANCE.barHeight), 2, 12),
-          textScale: clamp(Number(parsed.textScale ?? DEFAULT_APPEARANCE.textScale), 80, 140),
+          barHeight: clamp(Number(parsed.barHeight ?? DEFAULT_APPEARANCE.barHeight), 4, 16),
+          textScale: clamp(Number(parsed.textScale ?? DEFAULT_APPEARANCE.textScale), 80, 180),
         });
       } catch {
         window.localStorage.removeItem("usage-overlay-appearance");
@@ -306,12 +306,12 @@ export default function Home() {
 
           <label className="setting-field" htmlFor="bar-height">
             <span>Bar height <output>{appearance.barHeight}px</output></span>
-            <input id="bar-height" type="range" min="2" max="12" value={appearance.barHeight} onChange={(event) => updateAppearance("barHeight", Number(event.target.value))} />
+            <input id="bar-height" type="range" min="4" max="16" value={appearance.barHeight} onChange={(event) => updateAppearance("barHeight", Number(event.target.value))} />
           </label>
 
           <label className="setting-field" htmlFor="text-scale">
             <span>Text size <output>{appearance.textScale}%</output></span>
-            <input id="text-scale" type="range" min="80" max="140" value={appearance.textScale} onChange={(event) => updateAppearance("textScale", Number(event.target.value))} />
+            <input id="text-scale" type="range" min="80" max="180" value={appearance.textScale} onChange={(event) => updateAppearance("textScale", Number(event.target.value))} />
           </label>
 
           <ColorSetting
