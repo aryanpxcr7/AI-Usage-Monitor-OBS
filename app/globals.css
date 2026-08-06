@@ -69,6 +69,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  color: var(--agent-color, var(--text));
 }
 
 .agent-period {
@@ -101,9 +102,9 @@ body {
   color: #ff9ba8;
 }
 
-.agent-name--codex { color: var(--codex-color, #ffd09d); }
-.agent-name--claude { color: var(--claude-color, #d7caff); }
-.agent-name--opencode { color: var(--opencode-color, #b4f0e5); }
+.agent-name--codex { color: var(--agent-color, var(--codex-color, #ffd09d)); }
+.agent-name--claude { color: var(--agent-color, var(--claude-color, #d7caff)); }
+.agent-name--opencode { color: var(--agent-color, var(--opencode-color, #b4f0e5)); }
 
 .agent-dot,
 .bridge-status__dot {
@@ -113,9 +114,10 @@ body {
   border-radius: 50%;
 }
 
-.agent-name--codex .agent-dot { background: var(--codex-color, var(--orange)); }
-.agent-name--claude .agent-dot { background: var(--claude-color, var(--violet)); }
-.agent-name--opencode .agent-dot { background: var(--opencode-color, #69d4c6); }
+.agent-dot { background: var(--agent-color, #b8b4c2); }
+.agent-name--codex .agent-dot { background: var(--agent-color, var(--codex-color, var(--orange))); }
+.agent-name--claude .agent-dot { background: var(--agent-color, var(--claude-color, var(--violet))); }
+.agent-name--opencode .agent-dot { background: var(--agent-color, var(--opencode-color, #69d4c6)); }
 
 .row-percent {
   color: var(--text);
@@ -136,12 +138,13 @@ body {
   height: 100%;
   min-width: 0;
   border-radius: inherit;
+  background: var(--agent-color, #b8b4c2);
   transition: width 300ms ease;
 }
 
-.usage-bar__fill--codex { background: var(--codex-color, var(--orange)); }
-.usage-bar__fill--claude { background: var(--claude-color, var(--violet)); }
-.usage-bar__fill--opencode { background: var(--opencode-color, #69d4c6); }
+.usage-bar__fill--codex { background: var(--agent-color, var(--codex-color, var(--orange))); }
+.usage-bar__fill--claude { background: var(--agent-color, var(--claude-color, var(--violet))); }
+.usage-bar__fill--opencode { background: var(--agent-color, var(--opencode-color, #69d4c6)); }
 .usage-bar__fill--offline { background: #777481; }
 .usage-bar--dead {
   background: rgba(255, 79, 103, 0.16);

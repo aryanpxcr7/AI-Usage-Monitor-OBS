@@ -23,6 +23,10 @@ test("server-renders the compact local overlay", async () => {
   assert.match(html, /CODEX/);
   assert.match(html, /CLAUDE/);
   assert.match(html, /OPENCODE/);
+  assert.match(html, /GEMINI/);
+  assert.match(html, /QWEN/);
+  assert.match(html, /COPILOT/);
+  assert.match(html, /OLLAMA/);
   assert.match(html, /Weekly/);
   assert.match(html, /Session/);
   assert.match(html, /Realtime/);
@@ -31,7 +35,7 @@ test("server-renders the compact local overlay", async () => {
   assert.match(html, /Visible models/);
   assert.match(html, /type="checkbox"/);
   assert.match(html, /Test siren/);
-  assert.match(html, /Choose which live usage bars appear/);
+  assert.match(html, /Detected tools are marked live or detected/);
   assert.match(html, /color-text/);
   assert.match(html, /color-preset/);
   assert.doesNotMatch(html, /type="color"/);
@@ -69,6 +73,12 @@ test("keeps provider credentials in the localhost bridge", async () => {
   assert.match(bridge, /readClaudeProfile/);
   assert.match(bridge, /opencode\.cmd/);
   assert.match(bridge, /stats/);
+  assert.match(bridge, /DISCOVERY_AGENTS/);
+  assert.match(bridge, /gemini/);
+  assert.match(bridge, /qwen/);
+  assert.match(bridge, /copilot/);
+  assert.match(bridge, /kiro-cli/);
+  assert.match(bridge, /detected - no percentage limit/);
   assert.match(bridge, /model_reasoning_effort/);
   assert.match(bridge, /effortLevel/);
   assert.match(bridge, /no-session-persistence/);

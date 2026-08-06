@@ -2,7 +2,34 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 
-type AgentId = "codex" | "claude" | "opencode";
+type AgentId =
+  | "codex"
+  | "claude"
+  | "opencode"
+  | "gemini"
+  | "qwen"
+  | "copilot"
+  | "amazonq"
+  | "aider"
+  | "cursor"
+  | "goose"
+  | "ollama"
+  | "lmstudio"
+  | "kiro"
+  | "vibe"
+  | "crush";
+
+type AgentColorKey = "codexColor" | "claudeColor" | "opencodeColor";
+
+type AgentConfig = {
+  id: AgentId;
+  name: string;
+  period: string;
+  color: string;
+  colorKey: AgentColorKey | null;
+  core: boolean;
+  defaultVisible: boolean;
+};
 
 type AgentUsage = {
   available: boolean;
@@ -34,12 +61,36 @@ type AppearanceState = {
 
 const BRIDGE_URL = "http://127.0.0.1:4318/api/usage";
 
+const AGENT_CONFIG: readonly AgentConfig[] = [
+  { id: "codex", name: "CODEX", period: "Weekly", color: "#f2a65a", colorKey: "codexColor", core: true, defaultVisible: true },
+  { id: "claude", name: "CLAUDE", period: "Session", color: "#b69bff", colorKey: "claudeColor", core: true, defaultVisible: true },
+  { id: "opencode", name: "OPENCODE", period: "Stats", color: "#69d4c6", colorKey: "opencodeColor", core: false, defaultVisible: false },
+  { id: "gemini", name: "GEMINI", period: "Stats", color: "#78a9ff", colorKey: null, core: false, defaultVisible: false },
+  { id: "qwen", name: "QWEN", period: "Stats", color: "#67e8f9", colorKey: null, core: false, defaultVisible: false },
+  { id: "copilot", name: "COPILOT", period: "Stats", color: "#d4a8ff", colorKey: null, core: false, defaultVisible: false },
+  { id: "amazonq", name: "AMAZON Q", period: "Stats", color: "#ffb86c", colorKey: null, core: false, defaultVisible: false },
+  { id: "aider", name: "AIDER", period: "Stats", color: "#ff7797", colorKey: null, core: false, defaultVisible: false },
+  { id: "cursor", name: "CURSOR", period: "Stats", color: "#7bc7ff", colorKey: null, core: false, defaultVisible: false },
+  { id: "goose", name: "GOOSE", period: "Stats", color: "#f3dd74", colorKey: null, core: false, defaultVisible: false },
+  { id: "ollama", name: "OLLAMA", period: "Local", color: "#c4d7ff", colorKey: null, core: false, defaultVisible: false },
+  { id: "lmstudio", name: "LM STUDIO", period: "Local", color: "#9bd8ff", colorKey: null, core: false, defaultVisible: false },
+  { id: "kiro", name: "KIRO", period: "Stats", color: "#cfb3ff", colorKey: null, core: false, defaultVisible: false },
+  { id: "vibe", name: "MISTRAL VIBE", period: "Stats", color: "#ff9e7a", colorKey: null, core: false, defaultVisible: false },
+  { id: "crush", name: "CRUSH", period: "Stats", color: "#98e69c", colorKey: null, core: false, defaultVisible: false },
+];
+
+function createAgentFlags(value: boolean) {
+  return Object.fromEntries(AGENT_CONFIG.map((agent) => [agent.id, value])) as Record<AgentId, boolean>;
+}
+
+function createEmptyAgentUsage(): AgentUsage {
+  return { available: false, usedPercent: null, resetAt: null, resetLabel: null, model: null, effort: null, detected: false };
+}
+
 const EMPTY_USAGE: UsageResponse = {
-  codex: { available: false, usedPercent: null, resetAt: null, resetLabel: null, model: null, effort: null, detected: false },
-  claude: { available: false, usedPercent: null, resetAt: null, resetLabel: null, model: null, effort: null, detected: false },
-  opencode: { available: false, usedPercent: null, resetAt: null, resetLabel: null, model: null, effort: null, detected: false },
+  ...Object.fromEntries(AGENT_CONFIG.map((agent) => [agent.id, createEmptyAgentUsage()])),
   updatedAt: null,
-};
+} as UsageResponse;
 
 const DEFAULT_APPEARANCE: AppearanceState = {
   backgroundColor: "#08090d",
@@ -49,14 +100,8 @@ const DEFAULT_APPEARANCE: AppearanceState = {
   opencodeColor: "#69d4c6",
   barHeight: 7,
   textScale: 100,
-  visibleAgents: { codex: true, claude: true, opencode: false },
+  visibleAgents: Object.fromEntries(AGENT_CONFIG.map((agent) => [agent.id, agent.defaultVisible])) as Record<AgentId, boolean>,
 };
-
-const AGENT_CONFIG = [
-  { id: "codex", name: "CODEX", period: "Weekly", colorKey: "codexColor", defaultVisible: true },
-  { id: "claude", name: "CLAUDE", period: "Session", colorKey: "claudeColor", defaultVisible: true },
-  { id: "opencode", name: "OPENCODE", period: "Stats", colorKey: "opencodeColor", defaultVisible: false },
-] as const satisfies ReadonlyArray<{ id: AgentId; name: string; period: string; colorKey: "codexColor" | "claudeColor" | "opencodeColor"; defaultVisible: boolean }>;
 
 const COLOR_PRESETS = {
   background: ["#08090d", "#000000", "#121212", "#202124"],
@@ -64,6 +109,21 @@ const COLOR_PRESETS = {
   claude: ["#b69bff", "#8f7cff", "#ff8fb3", "#7ad7d0"],
   opencode: ["#69d4c6", "#4cb8e8", "#d6a1ff", "#f2c16b"],
 } as const;
+
+function normalizeUsageResponse(value: unknown): UsageResponse {
+  const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const next = { ...EMPTY_USAGE } as UsageResponse;
+
+  for (const agent of AGENT_CONFIG) {
+    const candidate = raw[agent.id];
+    if (candidate && typeof candidate === "object") {
+      next[agent.id] = { ...EMPTY_USAGE[agent.id], ...(candidate as Partial<AgentUsage>) };
+    }
+  }
+
+  next.updatedAt = typeof raw.updatedAt === "string" ? raw.updatedAt : null;
+  return next;
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, Math.round(value)));
@@ -90,6 +150,14 @@ function readVisibleAgents(value: unknown): Record<AgentId, boolean> {
     visibility[agent.id] = stored[agent.id] === undefined ? agent.defaultVisible : stored[agent.id] !== false;
     return visibility;
   }, {} as Record<AgentId, boolean>);
+}
+
+function getAgentColor(agent: AgentConfig, appearance: AppearanceState) {
+  if (agent.colorKey) {
+    const configuredColor = appearance[agent.colorKey];
+    if (isHexColor(configuredColor)) return configuredColor;
+  }
+  return agent.color;
 }
 
 function formatCountdown(resetAt: number | null, now: number) {
@@ -122,6 +190,7 @@ function UsageRow({
   name,
   period,
   accent,
+  accentColor,
   usage,
   resetText,
   testOutOfUsage,
@@ -129,6 +198,7 @@ function UsageRow({
   name: string;
   period: string;
   accent: AgentId;
+  accentColor: string;
   usage: AgentUsage;
   resetText: string;
   testOutOfUsage: boolean;
@@ -138,7 +208,7 @@ function UsageRow({
   const percent = outOfUsage ? "100%" : usage.usedPercent === null ? "--" : `${Math.round(usage.usedPercent)}%`;
 
   return (
-    <section className={`usage-row ${outOfUsage ? "usage-row--dead" : ""}`} aria-label={`${name} usage`}>
+    <section className={`usage-row ${outOfUsage ? "usage-row--dead" : ""}`} style={{ "--agent-color": accentColor } as CSSProperties} aria-label={`${name} usage`}>
       <div className="row-label">
         <span className={`agent-name agent-name--${accent}`}>
           <span className="agent-dot" />
@@ -221,10 +291,10 @@ export default function Home() {
   const [usage, setUsage] = useState<UsageResponse>(EMPTY_USAGE);
   const [now, setNow] = useState(() => Date.now());
   const [appearance, setAppearance] = useState<AppearanceState>(DEFAULT_APPEARANCE);
-  const [testOutOfUsage, setTestOutOfUsage] = useState<Record<AgentId, boolean>>({ codex: false, claude: false });
+  const [testOutOfUsage, setTestOutOfUsage] = useState<Record<AgentId, boolean>>(() => createAgentFlags(false));
   const [soundEnabled, setSoundEnabled] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const alertStateRef = useRef<Record<AgentId, boolean>>({ codex: false, claude: false });
+  const alertStateRef = useRef<Record<AgentId, boolean>>(createAgentFlags(false));
   const testTimersRef = useRef<Partial<Record<AgentId, number>>>({});
 
   const playSiren = useCallback(async () => {
@@ -332,18 +402,20 @@ export default function Home() {
       try {
         const response = await fetch(BRIDGE_URL, { cache: "no-store" });
         if (!response.ok) throw new Error("bridge offline");
-        const next = (await response.json()) as UsageResponse;
+        const next = normalizeUsageResponse(await response.json());
         if (!disposed) {
           setUsage(next);
           setNow(Date.now());
         }
       } catch {
         if (!disposed) {
-          setUsage((current) => ({
-            ...current,
-            codex: { ...current.codex, available: false, error: "localhost bridge offline" },
-            claude: { ...current.claude, available: false, error: "localhost bridge offline" },
-          }));
+          setUsage((current) => {
+            const next = { ...current };
+            for (const agent of AGENT_CONFIG) {
+              next[agent.id] = { ...next[agent.id], available: false, error: "localhost bridge offline" };
+            }
+            return next;
+          });
           setNow(Date.now());
         }
       }
@@ -422,6 +494,7 @@ export default function Home() {
             name={agent.name}
             period={agent.period}
             accent={agent.id}
+            accentColor={getAgentColor(agent, appearance)}
             usage={usage[agent.id]}
             resetText={formatResetText(agent.id, usage[agent.id], now)}
             testOutOfUsage={testOutOfUsage[agent.id]}
@@ -457,7 +530,7 @@ export default function Home() {
 
           <fieldset className="model-settings">
             <legend>Visible models</legend>
-            <p className="model-settings__hint">Choose which live usage bars appear above.</p>
+            <p className="model-settings__hint">Detected tools are marked live or detected; optional rows start hidden.</p>
             <div className="model-options">
               {AGENT_CONFIG.map((agent) => {
                 const agentUsage = usage[agent.id];
@@ -474,7 +547,7 @@ export default function Home() {
                       <span className="model-option__name">
                         <span
                           className="model-option__dot"
-                          style={{ backgroundColor: isHexColor(appearance[agent.colorKey]) ? appearance[agent.colorKey] : "#777480" }}
+                          style={{ backgroundColor: getAgentColor(agent, appearance) }}
                         />
                         {agent.name}
                       </span>

@@ -9,10 +9,26 @@ const PORT = 4318;
 const POLL_INTERVAL_MS = 15_000;
 const COMMAND_TIMEOUT_MS = 20_000;
 
+const DISCOVERY_AGENTS = [
+  { id: "gemini", label: "Gemini CLI", command: "gemini", modelPaths: [join(homedir(), ".gemini", "settings.json")] },
+  { id: "qwen", label: "Qwen Code", command: "qwen", modelPaths: [join(homedir(), ".qwen", "settings.json")] },
+  { id: "copilot", label: "GitHub Copilot CLI", command: "copilot", modelPaths: [join(homedir(), ".copilot", "config.json")] },
+  { id: "amazonq", label: "Amazon Q Developer", command: "q", modelPaths: [join(homedir(), ".aws", "amazonq", "config.json"), join(homedir(), ".amazonq", "config.json")] },
+  { id: "aider", label: "Aider", command: "aider", modelPaths: [join(homedir(), ".aider.conf.yml"), join(homedir(), ".aider.conf.yaml")] },
+  { id: "cursor", label: "Cursor Agent", command: "cursor-agent", modelPaths: [join(homedir(), ".cursor", "settings.json")] },
+  { id: "goose", label: "Goose", command: "goose", modelPaths: [join(homedir(), ".config", "goose", "config.yaml"), join(homedir(), ".goose", "config.yaml")] },
+  { id: "ollama", label: "Ollama", command: "ollama", modelArgs: ["list"], modelParser: "table" },
+  { id: "lmstudio", label: "LM Studio", command: "lms", modelArgs: ["ls"], modelParser: "table" },
+  { id: "kiro", label: "Kiro CLI", command: "kiro-cli", modelPaths: [join(homedir(), ".kiro", "settings.json"), join(homedir(), ".kiro-cli", "settings.json")] },
+  { id: "vibe", label: "Mistral Vibe", command: "vibe", modelPaths: [join(homedir(), ".config", "mistral-vibe", "config.toml")] },
+  { id: "crush", label: "Crush", command: "crush", modelPaths: [join(homedir(), ".config", "crush", "config.json"), join(homedir(), ".crush", "config.json")] },
+];
+
 let latest = {
   codex: unavailable("starting"),
   claude: unavailable("starting"),
   opencode: unavailable("starting"),
+  ...Object.fromEntries(DISCOVERY_AGENTS.map((agent) => [agent.id, unavailable("starting")])),
   updatedAt: null,
 };
 let pollInFlight = null;
@@ -39,6 +55,57 @@ async function readConfiguredValue(path, pattern) {
   } catch {
     return null;
   }
+}
+
+function extractConfiguredModel(value, depth = 0) {
+  if (depth > 2 || value === null || typeof value !== "object") return null;
+
+  for (const key of ["model", "modelName", "model_name", "defaultModel", "default_model"]) {
+    const candidate = value[key];
+    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+    if (candidate && typeof candidate === "object") {
+      const nested = extractConfiguredModel(candidate, depth + 1);
+      if (nested) return nested;
+    }
+  }
+
+  return null;
+}
+
+async function readDiscoveryModelFromPath(path) {
+  try {
+    const contents = await readFile(path, "utf8");
+    try {
+      const parsed = JSON.parse(contents);
+      const model = extractConfiguredModel(parsed);
+      if (model) return model;
+    } catch {
+      // YAML and TOML profiles are handled by the lightweight fallback below.
+    }
+
+    const match = contents.match(/^\s*(?:model|model_name|default_model)\s*[:=]\s*["']?([^"'#\r\n]+)["']?\s*$/m);
+    return match?.[1]?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+async function readDiscoveryModel(agent) {
+  for (const path of agent.modelPaths ?? []) {
+    const model = await readDiscoveryModelFromPath(path);
+    if (model) return model;
+  }
+
+  if (!agent.modelArgs) return null;
+  const output = await runAgentCommand(agent, agent.modelArgs);
+  if (!output || agent.modelParser !== "table") return null;
+
+  const rows = stripAnsi(output)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !/^[-=\s]+$/.test(line));
+  const row = rows.find((line) => !/^(name|model|id)\b/i.test(line));
+  return row?.split(/\s+/)[0] ?? null;
 }
 
 async function readCodexProfile() {
@@ -131,6 +198,23 @@ function runCommand(command, args, options = {}) {
   });
 }
 
+function runAgentCommand(agent, args) {
+  const shell = process.platform === "win32";
+  const primaryCommand = shell ? `${agent.command}.cmd` : agent.command;
+  return runCommand(primaryCommand, args, { shell }).then((output) => {
+    if (output !== null || !shell) return output;
+    return runCommand(agent.command, args, { shell: true });
+  });
+}
+
+async function isAgentInstalled(agent) {
+  const versionOutput = await runAgentCommand(agent, ["--version"]);
+  if (versionOutput !== null) return true;
+
+  const locator = process.platform === "win32" ? "where.exe" : "which";
+  return (await runCommand(locator, [agent.command])) !== null;
+}
+
 function runClaudeUsageCommand() {
   return runCommand(
     "claude",
@@ -212,11 +296,31 @@ async function fetchOpenCodeUsage() {
   });
 }
 
+async function fetchDiscoveredAgentUsage(agent) {
+  if (!(await isAgentInstalled(agent))) return unavailable(`${agent.label} not detected`);
+
+  return unavailable("detected - no percentage limit", {
+    model: await readDiscoveryModel(agent),
+    detected: true,
+  });
+}
+
 async function poll() {
   if (pollInFlight) return pollInFlight;
-  pollInFlight = Promise.all([fetchCodexUsage(), fetchClaudeUsage(), fetchOpenCodeUsage()])
-    .then(([codex, claude, opencode]) => {
-      latest = { codex, claude, opencode, updatedAt: new Date().toISOString() };
+  pollInFlight = Promise.all([
+    fetchCodexUsage(),
+    fetchClaudeUsage(),
+    fetchOpenCodeUsage(),
+    ...DISCOVERY_AGENTS.map((agent) => fetchDiscoveredAgentUsage(agent)),
+  ])
+    .then(([codex, claude, opencode, ...discovered]) => {
+      latest = {
+        codex,
+        claude,
+        opencode,
+        ...Object.fromEntries(DISCOVERY_AGENTS.map((agent, index) => [agent.id, discovered[index]])),
+        updatedAt: new Date().toISOString(),
+      };
     })
     .finally(() => {
       pollInFlight = null;
