@@ -209,14 +209,63 @@ body {
   accent-color: #b69bff;
 }
 
-.color-input {
-  width: 100%;
+.color-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.color-swatch {
+  width: 26px;
   height: 26px;
-  padding: 2px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 5px;
+}
+
+.color-text {
+  width: 72px;
+  min-width: 0;
+  height: 26px;
+  padding: 4px 6px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 5px;
-  background: transparent;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 10px;
+  outline: 0;
+  text-transform: uppercase;
+}
+
+.color-text:focus {
+  border-color: rgba(182, 155, 255, 0.8);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.color-presets {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.color-preset {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 50%;
   cursor: pointer;
+}
+
+.color-preset:hover,
+.color-preset:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.78);
+  outline-offset: 1px;
+  transform: scale(1.15);
 }
 
 .settings-footer {

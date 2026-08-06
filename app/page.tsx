@@ -42,6 +42,12 @@ const DEFAULT_APPEARANCE: AppearanceState = {
   textScale: 100,
 };
 
+const COLOR_PRESETS = {
+  background: ["#08090d", "#000000", "#121212", "#202124"],
+  codex: ["#f2a65a", "#ff8a3d", "#57d6a0", "#75b9ff"],
+  claude: ["#b69bff", "#8f7cff", "#ff8fb3", "#7ad7d0"],
+} as const;
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, Math.round(value)));
 }
@@ -55,6 +61,10 @@ function hexToRgba(hex: string, opacity: number) {
   const green = Number.parseInt(hex.slice(3, 5), 16);
   const blue = Number.parseInt(hex.slice(5, 7), 16);
   return `rgba(${red}, ${green}, ${blue}, ${opacity / 100})`;
+}
+
+function isHexDraft(value: string) {
+  return /^#[0-9a-f]{0,6}$/i.test(value);
 }
 
 function formatCountdown(resetAt: number | null, now: number) {
@@ -98,6 +108,62 @@ function UsageRow({
       </div>
       <p className="row-meta">{usage.available ? resetText : usage.error ?? "localhost bridge offline"}</p>
     </section>
+  );
+}
+
+function ColorSetting({
+  id,
+  label,
+  value,
+  presets,
+  onChange,
+  onCommit,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  presets: readonly string[];
+  onChange: (value: string) => void;
+  onCommit: () => void;
+}) {
+  const swatchColor = isHexColor(value) ? value : "#777480";
+
+  return (
+    <div className="setting-field setting-field--color">
+      <span>{label} <output>{value}</output></span>
+      <div className="color-control">
+        <span className="color-swatch" style={{ backgroundColor: swatchColor }} aria-hidden="true" />
+        <input
+          id={id}
+          className="color-text"
+          type="text"
+          inputMode="text"
+          autoComplete="off"
+          maxLength={7}
+          spellCheck={false}
+          value={value}
+          aria-label={`${label} hex value`}
+          onChange={(event) => onChange(event.target.value)}
+          onBlur={onCommit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+          }}
+        />
+        <div className="color-presets" aria-label={`${label} presets`}>
+          {presets.map((preset) => (
+            <button
+              key={preset}
+              className="color-preset"
+              type="button"
+              title={preset}
+              aria-label={`Set ${label} to ${preset}`}
+              style={{ backgroundColor: preset }}
+              onClick={() => onChange(preset)}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -170,15 +236,37 @@ export default function Home() {
     window.localStorage.setItem("usage-overlay-appearance", JSON.stringify(next));
   };
 
+  const updateColorDraft = (key: "backgroundColor" | "codexColor" | "claudeColor", value: string) => {
+    const normalized = value.startsWith("#") ? value : `#${value}`;
+    if (!isHexDraft(normalized)) return;
+
+    const next = { ...appearance, [key]: normalized };
+    setAppearance(next);
+    if (isHexColor(normalized)) {
+      window.localStorage.setItem("usage-overlay-appearance", JSON.stringify(next));
+    }
+  };
+
+  const commitColor = (key: "backgroundColor" | "codexColor" | "claudeColor") => {
+    if (isHexColor(appearance[key])) return;
+
+    const next = { ...appearance, [key]: DEFAULT_APPEARANCE[key] };
+    setAppearance(next);
+    window.localStorage.setItem("usage-overlay-appearance", JSON.stringify(next));
+  };
+
   const resetAppearance = () => {
     setAppearance(DEFAULT_APPEARANCE);
     window.localStorage.removeItem("usage-overlay-appearance");
   };
 
   const overlayStyle = {
-    "--panel-background": hexToRgba(appearance.backgroundColor, appearance.backgroundOpacity),
-    "--codex-color": appearance.codexColor,
-    "--claude-color": appearance.claudeColor,
+    "--panel-background": hexToRgba(
+      isHexColor(appearance.backgroundColor) ? appearance.backgroundColor : DEFAULT_APPEARANCE.backgroundColor,
+      appearance.backgroundOpacity,
+    ),
+    "--codex-color": isHexColor(appearance.codexColor) ? appearance.codexColor : DEFAULT_APPEARANCE.codexColor,
+    "--claude-color": isHexColor(appearance.claudeColor) ? appearance.claudeColor : DEFAULT_APPEARANCE.claudeColor,
     "--bar-height": `${appearance.barHeight}px`,
     "--text-scale": appearance.textScale / 100,
   } as CSSProperties;
@@ -226,20 +314,32 @@ export default function Home() {
             <input id="text-scale" type="range" min="80" max="140" value={appearance.textScale} onChange={(event) => updateAppearance("textScale", Number(event.target.value))} />
           </label>
 
-          <label className="setting-field setting-field--color" htmlFor="background-color">
-            <span>Background color <output>{appearance.backgroundColor}</output></span>
-            <input id="background-color" className="color-input" type="color" value={appearance.backgroundColor} onChange={(event) => updateAppearance("backgroundColor", event.target.value)} />
-          </label>
+          <ColorSetting
+            id="background-color"
+            label="Background color"
+            value={appearance.backgroundColor}
+            presets={COLOR_PRESETS.background}
+            onChange={(value) => updateColorDraft("backgroundColor", value)}
+            onCommit={() => commitColor("backgroundColor")}
+          />
 
-          <label className="setting-field setting-field--color" htmlFor="codex-color">
-            <span>Codex color <output>{appearance.codexColor}</output></span>
-            <input id="codex-color" className="color-input" type="color" value={appearance.codexColor} onChange={(event) => updateAppearance("codexColor", event.target.value)} />
-          </label>
+          <ColorSetting
+            id="codex-color"
+            label="Codex color"
+            value={appearance.codexColor}
+            presets={COLOR_PRESETS.codex}
+            onChange={(value) => updateColorDraft("codexColor", value)}
+            onCommit={() => commitColor("codexColor")}
+          />
 
-          <label className="setting-field setting-field--color" htmlFor="claude-color">
-            <span>Claude color <output>{appearance.claudeColor}</output></span>
-            <input id="claude-color" className="color-input" type="color" value={appearance.claudeColor} onChange={(event) => updateAppearance("claudeColor", event.target.value)} />
-          </label>
+          <ColorSetting
+            id="claude-color"
+            label="Claude color"
+            value={appearance.claudeColor}
+            presets={COLOR_PRESETS.claude}
+            onChange={(value) => updateColorDraft("claudeColor", value)}
+            onCommit={() => commitColor("claudeColor")}
+          />
         </div>
 
         <div className="settings-footer">

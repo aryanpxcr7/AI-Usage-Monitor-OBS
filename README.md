@@ -18,4 +18,4 @@ The bridge listens only on `127.0.0.1:4318`. It reads local auth files server-si
 
 If one provider is unavailable, its row shows `localhost bridge offline` instead of fake data.
 
-Settings appear below the bars in the page. They change background opacity/color, both agent colors, bar height, and text size, and persist in this browser. Crop the OBS source above the settings section to show only the bars.
+Settings appear below the bars in the page. They change background opacity/color, both agent colors, bar height, and text size, and persist in this browser. Colors use hex text fields and preset swatches so they also work in OBS's embedded browser. Crop the OBS source above the settings section to show only the bars.
