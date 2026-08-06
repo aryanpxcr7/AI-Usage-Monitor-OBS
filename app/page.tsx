@@ -53,10 +53,10 @@ const DEFAULT_APPEARANCE: AppearanceState = {
 };
 
 const AGENT_CONFIG = [
-  { id: "codex", name: "CODEX", colorKey: "codexColor", defaultVisible: true },
-  { id: "claude", name: "CLAUDE", colorKey: "claudeColor", defaultVisible: true },
-  { id: "opencode", name: "OPENCODE", colorKey: "opencodeColor", defaultVisible: false },
-] as const satisfies ReadonlyArray<{ id: AgentId; name: string; colorKey: "codexColor" | "claudeColor" | "opencodeColor"; defaultVisible: boolean }>;
+  { id: "codex", name: "CODEX", period: "Weekly", colorKey: "codexColor", defaultVisible: true },
+  { id: "claude", name: "CLAUDE", period: "Session", colorKey: "claudeColor", defaultVisible: true },
+  { id: "opencode", name: "OPENCODE", period: "Stats", colorKey: "opencodeColor", defaultVisible: false },
+] as const satisfies ReadonlyArray<{ id: AgentId; name: string; period: string; colorKey: "codexColor" | "claudeColor" | "opencodeColor"; defaultVisible: boolean }>;
 
 const COLOR_PRESETS = {
   background: ["#08090d", "#000000", "#121212", "#202124"],
@@ -120,12 +120,14 @@ function isOutOfUsage(usage: AgentUsage) {
 
 function UsageRow({
   name,
+  period,
   accent,
   usage,
   resetText,
   testOutOfUsage,
 }: {
   name: string;
+  period: string;
   accent: AgentId;
   usage: AgentUsage;
   resetText: string;
@@ -141,6 +143,7 @@ function UsageRow({
         <span className={`agent-name agent-name--${accent}`}>
           <span className="agent-dot" />
           {name}
+          <span className="agent-period">({period})</span>
         </span>
         <span className="row-percent">{percent}</span>
       </div>
@@ -417,6 +420,7 @@ export default function Home() {
           <UsageRow
             key={agent.id}
             name={agent.name}
+            period={agent.period}
             accent={agent.id}
             usage={usage[agent.id]}
             resetText={formatResetText(agent.id, usage[agent.id], now)}

@@ -23,6 +23,8 @@ test("server-renders the compact local overlay", async () => {
   assert.match(html, /CODEX/);
   assert.match(html, /CLAUDE/);
   assert.match(html, /OPENCODE/);
+  assert.match(html, /Weekly/);
+  assert.match(html, /Session/);
   assert.match(html, /Realtime/);
   assert.match(html, /Overlay settings/);
   assert.match(html, /Background opacity/);
@@ -48,6 +50,7 @@ test("keeps provider credentials in the localhost bridge", async () => {
 
   assert.match(page, /127\.0\.0\.1:4318\/api\/usage/);
   assert.match(page, /AGENT_CONFIG/);
+  assert.match(page, /period/);
   assert.match(page, /visibleAgents/);
   assert.match(page, /row-model/);
   assert.match(page, /effort/);

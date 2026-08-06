@@ -71,6 +71,17 @@ body {
   gap: 7px;
 }
 
+.agent-period {
+  color: #aaa5b4;
+  font-size: calc(9px * var(--text-scale, 1));
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.usage-row--dead .agent-period {
+  color: #ff9ba8;
+}
+
 .row-model {
   margin: 4px 0 0;
   overflow-wrap: anywhere;
