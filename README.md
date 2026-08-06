@@ -1,35 +1,19 @@
-# Usage overlay
+# Local AI usage overlay
 
-A compact browser overlay for showing Codex weekly usage and Claude session usage in an OBS Browser Source.
+Small, transparent OBS Browser Source overlay with two live bars:
+
+- Codex weekly usage from the local Codex account session.
+- Claude Code session usage and reset time from `claude /usage`.
 
 ## Run locally
 
 ```bash
 npm install
-npm run dev
+npm run start:local
 ```
 
-Open the local URL in a browser, then add the same URL as an OBS Browser Source. The area around the panel is transparent, so it can sit on top of a stream scene.
+Keep that terminal running. It starts the browser app and a localhost-only usage bridge. Open the `Local` URL printed by the dev server in a browser once, then use the same URL in an OBS Browser Source. The overlay is intentionally small; `1000 × 250` is a safe OBS source size.
 
-## Set values
+The bridge listens only on `127.0.0.1:4318`. It reads local auth files server-side and never sends credentials to the browser. It refreshes provider data every 15 seconds.
 
-Open **Settings** in the overlay and save a local snapshot. Values are stored in this browser only.
-
-You can also seed the overlay from the URL:
-
-```text
-/?codex=42&claude=68&claudeEnd=18:40
-```
-
-The page listens for a browser-safe `postMessage` bridge for future live integrations:
-
-```js
-window.postMessage({
-  type: "ai-overlay:update",
-  codex: 42,
-  claude: 68,
-  claudeEnd: "18:40",
-});
-```
-
-The browser page cannot inspect desktop processes directly. A small local companion service can send the message above when live provider data is available.
+If one provider is unavailable, its row shows `localhost bridge offline` instead of fake data.
