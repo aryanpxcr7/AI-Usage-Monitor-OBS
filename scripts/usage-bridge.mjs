@@ -16,8 +16,8 @@ let latest = {
 };
 let pollInFlight = null;
 
-function unavailable(error) {
-  return { available: false, usedPercent: null, resetAt: null, resetLabel: null, error };
+function unavailable(error, model = null) {
+  return { available: false, usedPercent: null, resetAt: null, resetLabel: null, model, error };
 }
 
 function finiteNumber(value) {
@@ -30,10 +30,38 @@ async function readCodexAuth() {
   return auth.tokens ?? {};
 }
 
+async function readConfiguredModel(path, pattern) {
+  try {
+    const contents = await readFile(path, "utf8");
+    const match = contents.match(pattern);
+    return match?.[1]?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+async function readCodexModel() {
+  return readConfiguredModel(
+    join(homedir(), ".codex", "config.toml"),
+    /^\s*model\s*=\s*["']([^"']+)["']/m,
+  );
+}
+
+async function readClaudeModel() {
+  try {
+    const settings = JSON.parse(await readFile(join(homedir(), ".claude", "settings.json"), "utf8"));
+    return typeof settings?.model === "string" && settings.model.trim() ? settings.model.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchCodexUsage() {
+  const model = await readCodexModel();
+
   try {
     const tokens = await readCodexAuth();
-    if (!tokens.access_token) return unavailable("Codex is not signed in");
+    if (!tokens.access_token) return unavailable("Codex is not signed in", model);
 
     const headers = {
       Authorization: `Bearer ${tokens.access_token}`,
@@ -42,23 +70,24 @@ async function fetchCodexUsage() {
     if (tokens.account_id) headers["ChatGPT-Account-Id"] = tokens.account_id;
 
     const response = await fetch("https://chatgpt.com/backend-api/wham/usage", { headers });
-    if (!response.ok) return unavailable(`Codex usage unavailable (${response.status})`);
+    if (!response.ok) return unavailable(`Codex usage unavailable (${response.status})`, model);
 
     const data = await response.json();
     const window = data?.rate_limit?.primary_window;
     const usedPercent = finiteNumber(window?.used_percent);
     const resetAtSeconds = finiteNumber(window?.reset_at);
 
-    if (usedPercent === null) return unavailable("Codex usage not reported yet");
+    if (usedPercent === null) return unavailable("Codex usage not reported yet", model);
 
     return {
       available: true,
       usedPercent,
       resetAt: resetAtSeconds === null ? null : resetAtSeconds * 1000,
       resetLabel: null,
+      model,
     };
   } catch (error) {
-    return unavailable(error?.code === "ENOENT" ? "Codex auth file not found" : "Codex usage unavailable");
+    return unavailable(error?.code === "ENOENT" ? "Codex auth file not found" : "Codex usage unavailable", model);
   }
 }
 
@@ -106,19 +135,26 @@ function compactResetLabel(label) {
   return label.replace(/\s+\([^)]*\)\s*$/, "").trim();
 }
 
+function extractModelLabel(text) {
+  const match = text.match(/(?:current\s+)?model\s*:\s*([^\r\n]+)/i);
+  return match?.[1]?.trim() || null;
+}
+
 async function fetchClaudeUsage() {
+  const configuredModel = await readClaudeModel();
   const output = await runClaudeUsageCommand();
   const payload = parseClaudeJson(output);
   const result = typeof payload?.result === "string" ? payload.result : "";
   const match = result.match(/Current session:\s*([\d.]+)%\s*used.*?resets\s+([^\r\n]+)/i);
 
-  if (!match) return unavailable("Claude session usage unavailable");
+  if (!match) return unavailable("Claude session usage unavailable", extractModelLabel(result) ?? configuredModel);
 
   return {
     available: true,
     usedPercent: Number(match[1]),
     resetAt: null,
     resetLabel: compactResetLabel(match[2]),
+    model: extractModelLabel(result) ?? configuredModel,
   };
 }
 

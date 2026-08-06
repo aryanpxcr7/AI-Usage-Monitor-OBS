@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+
+type AgentId = "codex" | "claude";
 
 type AgentUsage = {
   available: boolean;
   usedPercent: number | null;
   resetAt: number | null;
   resetLabel: string | null;
+  model: string | null;
   error?: string;
 };
 
 type UsageResponse = {
-  codex: AgentUsage;
-  claude: AgentUsage;
+  [key in AgentId]: AgentUsage;
+} & {
   updatedAt: string | null;
 };
 
@@ -23,13 +26,14 @@ type AppearanceState = {
   claudeColor: string;
   barHeight: number;
   textScale: number;
+  visibleAgents: Record<AgentId, boolean>;
 };
 
 const BRIDGE_URL = "http://127.0.0.1:4318/api/usage";
 
 const EMPTY_USAGE: UsageResponse = {
-  codex: { available: false, usedPercent: null, resetAt: null, resetLabel: null },
-  claude: { available: false, usedPercent: null, resetAt: null, resetLabel: null },
+  codex: { available: false, usedPercent: null, resetAt: null, resetLabel: null, model: null },
+  claude: { available: false, usedPercent: null, resetAt: null, resetLabel: null, model: null },
   updatedAt: null,
 };
 
@@ -40,7 +44,13 @@ const DEFAULT_APPEARANCE: AppearanceState = {
   claudeColor: "#b69bff",
   barHeight: 7,
   textScale: 100,
+  visibleAgents: { codex: true, claude: true },
 };
+
+const AGENT_CONFIG = [
+  { id: "codex", name: "CODEX", colorKey: "codexColor" },
+  { id: "claude", name: "CLAUDE", colorKey: "claudeColor" },
+] as const satisfies ReadonlyArray<{ id: AgentId; name: string; colorKey: "codexColor" | "claudeColor" }>;
 
 const COLOR_PRESETS = {
   background: ["#08090d", "#000000", "#121212", "#202124"],
@@ -67,6 +77,14 @@ function isHexDraft(value: string) {
   return /^#[0-9a-f]{0,6}$/i.test(value);
 }
 
+function readVisibleAgents(value: unknown): Record<AgentId, boolean> {
+  const stored = value && typeof value === "object" ? value as Partial<Record<AgentId, unknown>> : {};
+  return AGENT_CONFIG.reduce((visibility, agent) => {
+    visibility[agent.id] = stored[agent.id] !== false;
+    return visibility;
+  }, {} as Record<AgentId, boolean>);
+}
+
 function formatCountdown(resetAt: number | null, now: number) {
   if (!resetAt) return "reset time unavailable";
 
@@ -83,30 +101,48 @@ function formatCountdown(resetAt: number | null, now: number) {
   return `resets in ${minutes}m`;
 }
 
+function formatResetText(id: AgentId, usage: AgentUsage, now: number) {
+  if (id === "codex") return `weekly · ${formatCountdown(usage.resetAt, now)}`;
+  return `session · ${usage.resetLabel ?? formatCountdown(usage.resetAt, now)}`;
+}
+
+function isOutOfUsage(usage: AgentUsage) {
+  return usage.usedPercent !== null && usage.usedPercent >= 100;
+}
+
 function UsageRow({
   name,
   accent,
   usage,
   resetText,
+  testOutOfUsage,
 }: {
   name: string;
-  accent: "codex" | "claude";
+  accent: AgentId;
   usage: AgentUsage;
   resetText: string;
+  testOutOfUsage: boolean;
 }) {
-  const value = usage.usedPercent === null ? 0 : Math.min(100, Math.max(0, usage.usedPercent));
-  const percent = usage.usedPercent === null ? "--" : `${Math.round(usage.usedPercent)}%`;
+  const outOfUsage = testOutOfUsage || isOutOfUsage(usage);
+  const value = outOfUsage ? 100 : usage.usedPercent === null ? 0 : Math.min(100, Math.max(0, usage.usedPercent));
+  const percent = outOfUsage ? "100%" : usage.usedPercent === null ? "--" : `${Math.round(usage.usedPercent)}%`;
 
   return (
-    <section className="usage-row" aria-label={`${name} usage`}>
+    <section className={`usage-row ${outOfUsage ? "usage-row--dead" : ""}`} aria-label={`${name} usage`}>
       <div className="row-label">
-        <span className={`agent-name agent-name--${accent}`}><span className="agent-dot" />{name}</span>
+        <span className={`agent-name agent-name--${accent}`}>
+          <span className="agent-dot" />
+          {name}
+          <span className="agent-model">{usage.model ?? "model unknown"}</span>
+        </span>
         <span className="row-percent">{percent}</span>
       </div>
-      <div className="usage-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={usage.usedPercent ?? 0} aria-label={`${name} usage percentage`}>
-        <span className={`usage-bar__fill usage-bar__fill--${accent} ${usage.available ? "" : "usage-bar__fill--offline"}`} style={{ width: `${value}%` }} />
+      <div className={`usage-bar ${outOfUsage ? "usage-bar--dead" : ""}`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={outOfUsage ? 100 : usage.usedPercent ?? 0} aria-label={`${name} usage percentage`}>
+        <span className={`usage-bar__fill usage-bar__fill--${accent} ${outOfUsage ? "usage-bar__fill--dead" : usage.available ? "" : "usage-bar__fill--offline"}`} style={{ width: `${value}%` }} />
       </div>
-      <p className="row-meta">{usage.available ? resetText : usage.error ?? "localhost bridge offline"}</p>
+      <p className={`row-meta ${outOfUsage ? "row-meta--dead" : ""}`}>
+        {outOfUsage ? "OUT OF USAGE!" : usage.available ? resetText : usage.error ?? "localhost bridge offline"}
+      </p>
     </section>
   );
 }
@@ -171,6 +207,84 @@ export default function Home() {
   const [usage, setUsage] = useState<UsageResponse>(EMPTY_USAGE);
   const [now, setNow] = useState(() => Date.now());
   const [appearance, setAppearance] = useState<AppearanceState>(DEFAULT_APPEARANCE);
+  const [testOutOfUsage, setTestOutOfUsage] = useState<Record<AgentId, boolean>>({ codex: false, claude: false });
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const alertStateRef = useRef<Record<AgentId, boolean>>({ codex: false, claude: false });
+  const testTimersRef = useRef<Partial<Record<AgentId, number>>>({});
+
+  const playSiren = useCallback(async () => {
+    const AudioContextConstructor = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextConstructor) return false;
+
+    try {
+      const context = audioContextRef.current ?? new AudioContextConstructor();
+      audioContextRef.current = context;
+      if (context.state === "suspended") await context.resume();
+      if (context.state !== "running") return false;
+
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      const start = context.currentTime;
+
+      oscillator.type = "triangle";
+      oscillator.frequency.setValueAtTime(650, start);
+      oscillator.frequency.linearRampToValueAtTime(1100, start + 0.22);
+      oscillator.frequency.linearRampToValueAtTime(650, start + 0.44);
+      oscillator.frequency.linearRampToValueAtTime(1100, start + 0.66);
+      oscillator.frequency.linearRampToValueAtTime(650, start + 0.88);
+
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.18, start + 0.03);
+      gain.gain.setValueAtTime(0.18, start + 0.84);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 1.05);
+
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start(start);
+      oscillator.stop(start + 1.08);
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const triggerTestAlert = (id: AgentId) => {
+    setTestOutOfUsage((current) => ({ ...current, [id]: true }));
+    void playSiren().then((enabled) => {
+      if (enabled) setSoundEnabled(true);
+    });
+
+    const previousTimer = testTimersRef.current[id];
+    if (previousTimer) window.clearTimeout(previousTimer);
+    testTimersRef.current[id] = window.setTimeout(() => {
+      setTestOutOfUsage((current) => ({ ...current, [id]: false }));
+      delete testTimersRef.current[id];
+    }, 6000);
+  };
+
+  useEffect(() => {
+    let shouldPlay = false;
+
+    for (const agent of AGENT_CONFIG) {
+      const exhausted = appearance.visibleAgents[agent.id] && isOutOfUsage(usage[agent.id]);
+      if (exhausted && !alertStateRef.current[agent.id]) {
+        alertStateRef.current[agent.id] = true;
+        shouldPlay = true;
+      } else if (!isOutOfUsage(usage[agent.id])) {
+        alertStateRef.current[agent.id] = false;
+      }
+    }
+
+    if (shouldPlay) void playSiren();
+  }, [appearance.visibleAgents, playSiren, usage]);
+
+  useEffect(() => () => {
+    Object.values(testTimersRef.current).forEach((timer) => {
+      if (timer) window.clearTimeout(timer);
+    });
+    void audioContextRef.current?.close();
+  }, []);
 
   useEffect(() => {
     const loadTimer = window.setTimeout(() => {
@@ -186,6 +300,7 @@ export default function Home() {
           claudeColor: isHexColor(parsed.claudeColor) ? parsed.claudeColor : DEFAULT_APPEARANCE.claudeColor,
           barHeight: clamp(Number(parsed.barHeight ?? DEFAULT_APPEARANCE.barHeight), 4, 16),
           textScale: clamp(Number(parsed.textScale ?? DEFAULT_APPEARANCE.textScale), 80, 180),
+          visibleAgents: readVisibleAgents(parsed.visibleAgents),
         });
       } catch {
         window.localStorage.removeItem("usage-overlay-appearance");
@@ -247,6 +362,15 @@ export default function Home() {
     }
   };
 
+  const updateAgentVisibility = (id: AgentId, visible: boolean) => {
+    const next = {
+      ...appearance,
+      visibleAgents: { ...appearance.visibleAgents, [id]: visible },
+    };
+    setAppearance(next);
+    window.localStorage.setItem("usage-overlay-appearance", JSON.stringify(next));
+  };
+
   const commitColor = (key: "backgroundColor" | "codexColor" | "claudeColor") => {
     if (isHexColor(appearance[key])) return;
 
@@ -271,21 +395,21 @@ export default function Home() {
     "--text-scale": appearance.textScale / 100,
   } as CSSProperties;
 
+  const visibleAgents = AGENT_CONFIG.filter((agent) => appearance.visibleAgents[agent.id]);
+
   return (
     <main className="page-shell">
       <section className="overlay-shell" style={overlayStyle} aria-label="AI usage bars">
-        <UsageRow
-          name="CODEX"
-          accent="codex"
-          usage={usage.codex}
-          resetText={`weekly · ${formatCountdown(usage.codex.resetAt, now)}`}
-        />
-        <UsageRow
-          name="CLAUDE"
-          accent="claude"
-          usage={usage.claude}
-          resetText={`session · ${usage.claude.resetLabel ?? formatCountdown(usage.claude.resetAt, now)}`}
-        />
+        {visibleAgents.map((agent) => (
+          <UsageRow
+            key={agent.id}
+            name={agent.name}
+            accent={agent.id}
+            usage={usage[agent.id]}
+            resetText={formatResetText(agent.id, usage[agent.id], now)}
+            testOutOfUsage={testOutOfUsage[agent.id]}
+          />
+        ))}
         <p className="bridge-status"><span className="bridge-status__dot" /> Realtime</p>
       </section>
 
@@ -313,6 +437,47 @@ export default function Home() {
             <span>Text size <output>{appearance.textScale}%</output></span>
             <input id="text-scale" type="range" min="80" max="180" value={appearance.textScale} onChange={(event) => updateAppearance("textScale", Number(event.target.value))} />
           </label>
+
+          <fieldset className="model-settings">
+            <legend>Visible models</legend>
+            <p className="model-settings__hint">Choose which live usage bars appear above.</p>
+            <div className="model-options">
+              {AGENT_CONFIG.map((agent) => {
+                const agentUsage = usage[agent.id];
+                return (
+                  <div className="model-option" key={agent.id}>
+                    <label className="model-option__toggle" htmlFor={`model-toggle-${agent.id}`}>
+                      <input
+                        id={`model-toggle-${agent.id}`}
+                        type="checkbox"
+                        checked={appearance.visibleAgents[agent.id]}
+                        aria-label={`${agent.name} ${agentUsage.available ? "LIVE" : "OFFLINE"}`}
+                        onChange={(event) => updateAgentVisibility(agent.id, event.target.checked)}
+                      />
+                      <span className="model-option__name">
+                        <span
+                          className="model-option__dot"
+                          style={{ backgroundColor: isHexColor(appearance[agent.colorKey]) ? appearance[agent.colorKey] : "#777480" }}
+                        />
+                        {agent.name}
+                      </span>
+                      <span className={`model-option__state ${agentUsage.available ? "model-option__state--live" : ""}`}>
+                        {agentUsage.available ? "LIVE" : "OFFLINE"}
+                      </span>
+                    </label>
+                    <button
+                      className="model-option__test"
+                      type="button"
+                      aria-label={`Test ${agent.name} out-of-usage alert`}
+                      onClick={() => triggerTestAlert(agent.id)}
+                    >
+                      Test siren
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </fieldset>
 
           <ColorSetting
             id="background-color"
@@ -343,7 +508,7 @@ export default function Home() {
         </div>
 
         <div className="settings-footer">
-          <span>Saved in this browser</span>
+          <span>{soundEnabled ? "Sound ready · saved locally" : "Click Test siren to enable sound"}</span>
           <button type="button" onClick={resetAppearance}>Reset settings</button>
         </div>
       </section>

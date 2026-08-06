@@ -18,4 +18,8 @@ The bridge listens only on `127.0.0.1:4318`. It reads local auth files server-si
 
 If one provider is unavailable, its row shows `localhost bridge offline` instead of fake data.
 
-Settings appear below the bars in the page. They change background opacity/color, both agent colors, bar height, and text size, and persist in this browser. Colors use hex text fields and preset swatches so they also work in OBS's embedded browser. Crop the OBS source above the settings section to show only the bars.
+Settings appear below the bars in the page. They change which live models are visible, background opacity/color, both agent colors, bar height, and text size, and persist in this browser. Colors use hex text fields and preset swatches so they also work in OBS's embedded browser. Crop the OBS source above the settings section to show only the selected bars.
+
+The model picker currently lists Codex and Claude because the local bridge has realtime percentage adapters for those providers. OpenCode is installed locally, but its CLI exposes token and cost statistics rather than a percentage limit, so it is not shown as a misleading usage bar. Additional providers can be added by giving the bridge a realtime usage adapter and adding one entry to the model registry.
+
+When a visible model reaches 100%, its row changes to a red dead state with `OUT OF USAGE!` and the overlay plays a short siren. Use the per-model `Test siren` buttons to preview the state and unlock audio in OBS, since embedded browsers require a user gesture before playing sound. The bridge also displays each provider's configured model label when the local settings expose one.

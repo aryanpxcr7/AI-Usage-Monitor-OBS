@@ -25,6 +25,10 @@ test("server-renders the compact local overlay", async () => {
   assert.match(html, /Realtime/);
   assert.match(html, /Overlay settings/);
   assert.match(html, /Background opacity/);
+  assert.match(html, /Visible models/);
+  assert.match(html, /type="checkbox"/);
+  assert.match(html, /Test siren/);
+  assert.match(html, /Choose which live usage bars appear/);
   assert.match(html, /color-text/);
   assert.match(html, /color-preset/);
   assert.doesNotMatch(html, /type="color"/);
@@ -42,6 +46,10 @@ test("keeps provider credentials in the localhost bridge", async () => {
   ]);
 
   assert.match(page, /127\.0\.0\.1:4318\/api\/usage/);
+  assert.match(page, /AGENT_CONFIG/);
+  assert.match(page, /visibleAgents/);
+  assert.match(page, /OUT OF USAGE!/);
+  assert.match(page, /AudioContext/);
   assert.match(styles, /background:\s*transparent/);
   assert.match(styles, /var\(--bar-height/);
   assert.match(styles, /var\(--panel-background/);
@@ -50,6 +58,9 @@ test("keeps provider credentials in the localhost bridge", async () => {
   assert.match(styles, /text-rendering:\s*optimizeLegibility/);
   assert.match(bridge, /backend-api\/wham\/usage/);
   assert.match(bridge, /claude/);
+  assert.match(bridge, /readConfiguredModel/);
+  assert.match(bridge, /readCodexModel/);
+  assert.match(bridge, /readClaudeModel/);
   assert.match(bridge, /no-session-persistence/);
   assert.match(bridge, /HOST = "127\.0\.0\.1"/);
   assert.match(launcher, /usage-bridge\.mjs/);
