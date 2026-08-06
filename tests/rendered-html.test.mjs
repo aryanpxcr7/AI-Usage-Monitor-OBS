@@ -22,6 +22,7 @@ test("server-renders the compact local overlay", async () => {
   assert.match(html, /<title>Local AI usage overlay<\/title>/i);
   assert.match(html, /CODEX/);
   assert.match(html, /CLAUDE/);
+  assert.match(html, /OPENCODE/);
   assert.match(html, /Realtime/);
   assert.match(html, /Overlay settings/);
   assert.match(html, /Background opacity/);
@@ -48,6 +49,8 @@ test("keeps provider credentials in the localhost bridge", async () => {
   assert.match(page, /127\.0\.0\.1:4318\/api\/usage/);
   assert.match(page, /AGENT_CONFIG/);
   assert.match(page, /visibleAgents/);
+  assert.match(page, /row-model/);
+  assert.match(page, /effort/);
   assert.match(page, /OUT OF USAGE!/);
   assert.match(page, /AudioContext/);
   assert.match(styles, /background:\s*transparent/);
@@ -58,9 +61,13 @@ test("keeps provider credentials in the localhost bridge", async () => {
   assert.match(styles, /text-rendering:\s*optimizeLegibility/);
   assert.match(bridge, /backend-api\/wham\/usage/);
   assert.match(bridge, /claude/);
-  assert.match(bridge, /readConfiguredModel/);
-  assert.match(bridge, /readCodexModel/);
-  assert.match(bridge, /readClaudeModel/);
+  assert.match(bridge, /readConfiguredValue/);
+  assert.match(bridge, /readCodexProfile/);
+  assert.match(bridge, /readClaudeProfile/);
+  assert.match(bridge, /opencode\.cmd/);
+  assert.match(bridge, /stats/);
+  assert.match(bridge, /model_reasoning_effort/);
+  assert.match(bridge, /effortLevel/);
   assert.match(bridge, /no-session-persistence/);
   assert.match(bridge, /HOST = "127\.0\.0\.1"/);
   assert.match(launcher, /usage-bridge\.mjs/);

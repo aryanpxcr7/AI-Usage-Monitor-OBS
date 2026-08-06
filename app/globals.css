@@ -71,23 +71,28 @@ body {
   gap: 7px;
 }
 
-.agent-model {
-  max-width: 180px;
-  overflow: hidden;
+.row-model {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
   color: #aaa5b4;
   font-size: calc(9px * var(--text-scale, 1));
   font-weight: 500;
+  line-height: 1.15;
   letter-spacing: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.usage-row--dead .agent-model {
+.row-model__effort {
+  color: #8f8a9d;
+}
+
+.row-model--dead,
+.row-model--dead .row-model__effort {
   color: #ff9ba8;
 }
 
 .agent-name--codex { color: var(--codex-color, #ffd09d); }
 .agent-name--claude { color: var(--claude-color, #d7caff); }
+.agent-name--opencode { color: var(--opencode-color, #b4f0e5); }
 
 .agent-dot,
 .bridge-status__dot {
@@ -99,6 +104,7 @@ body {
 
 .agent-name--codex .agent-dot { background: var(--codex-color, var(--orange)); }
 .agent-name--claude .agent-dot { background: var(--claude-color, var(--violet)); }
+.agent-name--opencode .agent-dot { background: var(--opencode-color, #69d4c6); }
 
 .row-percent {
   color: var(--text);
@@ -108,7 +114,7 @@ body {
 .usage-bar {
   width: 100%;
   height: var(--bar-height, 7px);
-  margin-top: 8px;
+  margin-top: 5px;
   overflow: hidden;
   border-radius: 99px;
   background: var(--track);
@@ -124,6 +130,7 @@ body {
 
 .usage-bar__fill--codex { background: var(--codex-color, var(--orange)); }
 .usage-bar__fill--claude { background: var(--claude-color, var(--violet)); }
+.usage-bar__fill--opencode { background: var(--opencode-color, #69d4c6); }
 .usage-bar__fill--offline { background: #777481; }
 .usage-bar--dead {
   background: rgba(255, 79, 103, 0.16);
@@ -345,6 +352,10 @@ body {
 
 .model-option__state--live {
   color: #7ed49a;
+}
+
+.model-option__state--detected {
+  color: #e3b36f;
 }
 
 .model-option__test {

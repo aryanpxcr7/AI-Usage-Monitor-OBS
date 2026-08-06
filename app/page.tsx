@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 
-type AgentId = "codex" | "claude";
+type AgentId = "codex" | "claude" | "opencode";
 
 type AgentUsage = {
   available: boolean;
@@ -10,6 +10,8 @@ type AgentUsage = {
   resetAt: number | null;
   resetLabel: string | null;
   model: string | null;
+  effort: string | null;
+  detected: boolean;
   error?: string;
 };
 
@@ -24,6 +26,7 @@ type AppearanceState = {
   backgroundOpacity: number;
   codexColor: string;
   claudeColor: string;
+  opencodeColor: string;
   barHeight: number;
   textScale: number;
   visibleAgents: Record<AgentId, boolean>;
@@ -32,8 +35,9 @@ type AppearanceState = {
 const BRIDGE_URL = "http://127.0.0.1:4318/api/usage";
 
 const EMPTY_USAGE: UsageResponse = {
-  codex: { available: false, usedPercent: null, resetAt: null, resetLabel: null, model: null },
-  claude: { available: false, usedPercent: null, resetAt: null, resetLabel: null, model: null },
+  codex: { available: false, usedPercent: null, resetAt: null, resetLabel: null, model: null, effort: null, detected: false },
+  claude: { available: false, usedPercent: null, resetAt: null, resetLabel: null, model: null, effort: null, detected: false },
+  opencode: { available: false, usedPercent: null, resetAt: null, resetLabel: null, model: null, effort: null, detected: false },
   updatedAt: null,
 };
 
@@ -42,20 +46,23 @@ const DEFAULT_APPEARANCE: AppearanceState = {
   backgroundOpacity: 82,
   codexColor: "#f2a65a",
   claudeColor: "#b69bff",
+  opencodeColor: "#69d4c6",
   barHeight: 7,
   textScale: 100,
-  visibleAgents: { codex: true, claude: true },
+  visibleAgents: { codex: true, claude: true, opencode: false },
 };
 
 const AGENT_CONFIG = [
-  { id: "codex", name: "CODEX", colorKey: "codexColor" },
-  { id: "claude", name: "CLAUDE", colorKey: "claudeColor" },
-] as const satisfies ReadonlyArray<{ id: AgentId; name: string; colorKey: "codexColor" | "claudeColor" }>;
+  { id: "codex", name: "CODEX", colorKey: "codexColor", defaultVisible: true },
+  { id: "claude", name: "CLAUDE", colorKey: "claudeColor", defaultVisible: true },
+  { id: "opencode", name: "OPENCODE", colorKey: "opencodeColor", defaultVisible: false },
+] as const satisfies ReadonlyArray<{ id: AgentId; name: string; colorKey: "codexColor" | "claudeColor" | "opencodeColor"; defaultVisible: boolean }>;
 
 const COLOR_PRESETS = {
   background: ["#08090d", "#000000", "#121212", "#202124"],
   codex: ["#f2a65a", "#ff8a3d", "#57d6a0", "#75b9ff"],
   claude: ["#b69bff", "#8f7cff", "#ff8fb3", "#7ad7d0"],
+  opencode: ["#69d4c6", "#4cb8e8", "#d6a1ff", "#f2c16b"],
 } as const;
 
 function clamp(value: number, min: number, max: number) {
@@ -80,7 +87,7 @@ function isHexDraft(value: string) {
 function readVisibleAgents(value: unknown): Record<AgentId, boolean> {
   const stored = value && typeof value === "object" ? value as Partial<Record<AgentId, unknown>> : {};
   return AGENT_CONFIG.reduce((visibility, agent) => {
-    visibility[agent.id] = stored[agent.id] !== false;
+    visibility[agent.id] = stored[agent.id] === undefined ? agent.defaultVisible : stored[agent.id] !== false;
     return visibility;
   }, {} as Record<AgentId, boolean>);
 }
@@ -103,7 +110,8 @@ function formatCountdown(resetAt: number | null, now: number) {
 
 function formatResetText(id: AgentId, usage: AgentUsage, now: number) {
   if (id === "codex") return `weekly · ${formatCountdown(usage.resetAt, now)}`;
-  return `session · ${usage.resetLabel ?? formatCountdown(usage.resetAt, now)}`;
+  if (id === "claude") return `session · ${usage.resetLabel ?? formatCountdown(usage.resetAt, now)}`;
+  return usage.resetLabel ?? "usage limit unavailable";
 }
 
 function isOutOfUsage(usage: AgentUsage) {
@@ -133,15 +141,18 @@ function UsageRow({
         <span className={`agent-name agent-name--${accent}`}>
           <span className="agent-dot" />
           {name}
-          <span className="agent-model">{usage.model ?? "model unknown"}</span>
         </span>
         <span className="row-percent">{percent}</span>
       </div>
+      <p className={`row-model ${outOfUsage ? "row-model--dead" : ""}`}>
+        {usage.model ?? "model unknown"}
+        {usage.effort ? <span className="row-model__effort"> · effort {usage.effort}</span> : null}
+      </p>
       <div className={`usage-bar ${outOfUsage ? "usage-bar--dead" : ""}`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={outOfUsage ? 100 : usage.usedPercent ?? 0} aria-label={`${name} usage percentage`}>
         <span className={`usage-bar__fill usage-bar__fill--${accent} ${outOfUsage ? "usage-bar__fill--dead" : usage.available ? "" : "usage-bar__fill--offline"}`} style={{ width: `${value}%` }} />
       </div>
       <p className={`row-meta ${outOfUsage ? "row-meta--dead" : ""}`}>
-        {outOfUsage ? "OUT OF USAGE!" : usage.available ? resetText : usage.error ?? "localhost bridge offline"}
+        {outOfUsage ? "OUT OF USAGE!" : usage.available ? resetText : usage.error ?? (usage.detected ? "usage percentage unavailable" : "localhost bridge offline")}
       </p>
     </section>
   );
@@ -298,6 +309,7 @@ export default function Home() {
           backgroundOpacity: clamp(Number(parsed.backgroundOpacity ?? DEFAULT_APPEARANCE.backgroundOpacity), 0, 100),
           codexColor: isHexColor(parsed.codexColor) ? parsed.codexColor : DEFAULT_APPEARANCE.codexColor,
           claudeColor: isHexColor(parsed.claudeColor) ? parsed.claudeColor : DEFAULT_APPEARANCE.claudeColor,
+          opencodeColor: isHexColor(parsed.opencodeColor) ? parsed.opencodeColor : DEFAULT_APPEARANCE.opencodeColor,
           barHeight: clamp(Number(parsed.barHeight ?? DEFAULT_APPEARANCE.barHeight), 4, 16),
           textScale: clamp(Number(parsed.textScale ?? DEFAULT_APPEARANCE.textScale), 80, 180),
           visibleAgents: readVisibleAgents(parsed.visibleAgents),
@@ -351,7 +363,7 @@ export default function Home() {
     window.localStorage.setItem("usage-overlay-appearance", JSON.stringify(next));
   };
 
-  const updateColorDraft = (key: "backgroundColor" | "codexColor" | "claudeColor", value: string) => {
+  const updateColorDraft = (key: "backgroundColor" | "codexColor" | "claudeColor" | "opencodeColor", value: string) => {
     const normalized = value.startsWith("#") ? value : `#${value}`;
     if (!isHexDraft(normalized)) return;
 
@@ -371,7 +383,7 @@ export default function Home() {
     window.localStorage.setItem("usage-overlay-appearance", JSON.stringify(next));
   };
 
-  const commitColor = (key: "backgroundColor" | "codexColor" | "claudeColor") => {
+  const commitColor = (key: "backgroundColor" | "codexColor" | "claudeColor" | "opencodeColor") => {
     if (isHexColor(appearance[key])) return;
 
     const next = { ...appearance, [key]: DEFAULT_APPEARANCE[key] };
@@ -391,6 +403,7 @@ export default function Home() {
     ),
     "--codex-color": isHexColor(appearance.codexColor) ? appearance.codexColor : DEFAULT_APPEARANCE.codexColor,
     "--claude-color": isHexColor(appearance.claudeColor) ? appearance.claudeColor : DEFAULT_APPEARANCE.claudeColor,
+    "--opencode-color": isHexColor(appearance.opencodeColor) ? appearance.opencodeColor : DEFAULT_APPEARANCE.opencodeColor,
     "--bar-height": `${appearance.barHeight}px`,
     "--text-scale": appearance.textScale / 100,
   } as CSSProperties;
@@ -451,7 +464,7 @@ export default function Home() {
                         id={`model-toggle-${agent.id}`}
                         type="checkbox"
                         checked={appearance.visibleAgents[agent.id]}
-                        aria-label={`${agent.name} ${agentUsage.available ? "LIVE" : "OFFLINE"}`}
+                        aria-label={`${agent.name} ${agentUsage.available ? "LIVE" : agentUsage.detected ? "DETECTED" : "OFFLINE"}`}
                         onChange={(event) => updateAgentVisibility(agent.id, event.target.checked)}
                       />
                       <span className="model-option__name">
@@ -461,8 +474,8 @@ export default function Home() {
                         />
                         {agent.name}
                       </span>
-                      <span className={`model-option__state ${agentUsage.available ? "model-option__state--live" : ""}`}>
-                        {agentUsage.available ? "LIVE" : "OFFLINE"}
+                      <span className={`model-option__state ${agentUsage.available ? "model-option__state--live" : agentUsage.detected ? "model-option__state--detected" : ""}`}>
+                        {agentUsage.available ? "LIVE" : agentUsage.detected ? "DETECTED" : "OFFLINE"}
                       </span>
                     </label>
                     <button
@@ -504,6 +517,15 @@ export default function Home() {
             presets={COLOR_PRESETS.claude}
             onChange={(value) => updateColorDraft("claudeColor", value)}
             onCommit={() => commitColor("claudeColor")}
+          />
+
+          <ColorSetting
+            id="opencode-color"
+            label="OpenCode color"
+            value={appearance.opencodeColor}
+            presets={COLOR_PRESETS.opencode}
+            onChange={(value) => updateColorDraft("opencodeColor", value)}
+            onCommit={() => commitColor("opencodeColor")}
           />
         </div>
 
