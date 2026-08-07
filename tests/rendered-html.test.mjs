@@ -19,7 +19,7 @@ test("server-renders the compact local overlay", async () => {
   assert.equal(response.status, 200);
   const html = await response.text();
 
-  assert.match(html, /<title>Local AI usage overlay<\/title>/i);
+  assert.match(html, /<title>AI Usage Monitor for OBS \| Codex, Claude &amp; Local AI Agents<\/title>/i);
   assert.match(html, /CODEX/);
   assert.match(html, /CLAUDE/);
   assert.match(html, /OPENCODE/);

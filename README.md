@@ -1,7 +1,7 @@
 # AI Usage Monitor for OBS
 
 <p align="center">
-  <strong>A small, localhost-only OBS Browser Source overlay for AI usage limits.</strong>
+  <strong>A lightweight localhost AI usage tracker and OBS Browser Source overlay for Codex, Claude, and local AI coding agents.</strong>
 </p>
 
 <p align="center">
@@ -25,10 +25,13 @@
 
 ## What it does
 
+- Tracks Codex weekly quota and Claude session usage in a compact AI limit overlay.
 - Shows live Codex weekly usage and Claude session usage.
 - Displays reset information, model names, and effort levels.
 - Detects supported local AI tools and lets you choose which rows to show.
 - Includes a limit alert siren and OBS-friendly appearance settings.
+
+It works as a local AI quota tracker, coding-agent usage dashboard, or transparent OBS stream overlay without sending provider credentials to a hosted service.
 
 ## Run it locally
 
