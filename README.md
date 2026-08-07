@@ -5,16 +5,15 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/aryanpxcr7/AI-Usage-Monitor-OBS-"><img alt="GitHub stars" src="https://img.shields.io/github/stars/aryanpxcr7/AI-Usage-Monitor-OBS-?style=flat-square"></a>
   <a href="https://github.com/aryanpxcr7/AI-Usage-Monitor-OBS-/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/aryanpxcr7/AI-Usage-Monitor-OBS-?style=flat-square"></a>
   <img alt="Localhost only" src="https://img.shields.io/badge/host-localhost-7ed49a?style=flat-square">
 </p>
 
 <p align="center">
-  <img src="docs/example-preview.svg" alt="Example AI Usage Monitor preview" width="900">
+  <img src="docs/example-preview.jpg" alt="Current AI Usage Monitor localhost preview" width="620">
 </p>
 
-> Example preview. Usage values are live when the app is running locally.
+> Captured from the current localhost page. Usage values and detected tools reflect the local machine running the app.
 
 ## What it does
 
@@ -53,10 +52,6 @@
 The bridge checks for Codex, Claude, OpenCode, Gemini CLI, Qwen Code, Copilot CLI, Amazon Q, Aider, Cursor Agent, Goose, Ollama, LM Studio, Kiro CLI, Mistral Vibe, and Crush.
 
 Codex and Claude currently provide percentage usage. Other detected tools show their model/configuration when available and do not display made-up quota percentages.
-
-## Star history
-
-[![Star History Chart](https://api.star-history.com/image?repos=aryanpxcr7/AI-Usage-Monitor-OBS-&type=Date)](https://star-history.com/#aryanpxcr7/AI-Usage-Monitor-OBS-&Date)
 
 ## Contributing
 
