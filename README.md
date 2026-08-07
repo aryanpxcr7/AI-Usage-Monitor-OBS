@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/aryanpxcr7/AI-Usage-Monitor-OBS-/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/aryanpxcr7/AI-Usage-Monitor-OBS-?style=flat-square"></a>
+  <a href="https://github.com/aryanpxcr7/AI-Usage-Monitor-OBS/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/aryanpxcr7/AI-Usage-Monitor-OBS?style=flat-square"></a>
   <img alt="Localhost only" src="https://img.shields.io/badge/host-localhost-7ed49a?style=flat-square">
 </p>
 
@@ -38,8 +38,8 @@ It works as a local AI quota tracker, coding-agent usage dashboard, or transpare
 1. Clone the repository and open the project folder.
 
    ```bash
-   git clone https://github.com/aryanpxcr7/AI-Usage-Monitor-OBS-.git
-   cd AI-Usage-Monitor-OBS-
+   git clone https://github.com/aryanpxcr7/AI-Usage-Monitor-OBS.git
+   cd AI-Usage-Monitor-OBS
    ```
 
 2. Install dependencies.
