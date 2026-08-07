@@ -23,13 +23,21 @@
 
 > Actual OBS Browser Source usage. The overlay stays in the corner while the rest of the scene remains visible.
 
+## When usage runs out
+
+<p align="center">
+  <img src="docs/out-of-usage-preview.jpg" alt="Codex out of usage alert in the AI Usage Monitor overlay" width="620">
+</p>
+
+When a visible agent reaches 100%, its bar switches to a red dead state, shows **OUT OF USAGE!**, and plays a short warning beep/siren. Use the **Test siren** button in settings to preview the alert.
+
 ## What it does
 
 - Tracks Codex weekly quota and Claude session usage in a compact AI limit overlay.
 - Shows live Codex weekly usage and Claude session usage.
 - Displays reset information, model names, and effort levels.
 - Detects supported local AI tools and lets you choose which rows to show.
-- Includes a limit alert siren and OBS-friendly appearance settings.
+- Includes a limit alert beep/siren and OBS-friendly appearance settings.
 
 It works as a local AI quota tracker, coding-agent usage dashboard, or transparent OBS stream overlay without sending provider credentials to a hosted service.
 
