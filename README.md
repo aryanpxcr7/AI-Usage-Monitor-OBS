@@ -15,6 +15,14 @@
 
 > Captured from the current localhost page. Usage values and detected tools reflect the local machine running the app.
 
+## Real OBS example
+
+<p align="center">
+  <img src="obs64_yDsRNDqluW.png" alt="AI Usage Monitor running as an OBS Browser Source" width="1000">
+</p>
+
+> Actual OBS Browser Source usage. The overlay stays in the corner while the rest of the scene remains visible.
+
 ## What it does
 
 - Shows live Codex weekly usage and Claude session usage.
