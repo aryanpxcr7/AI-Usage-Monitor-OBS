@@ -102,6 +102,35 @@ body {
   color: #ff9ba8;
 }
 
+.usage-windows {
+  margin-top: 8px;
+}
+
+.usage-window + .usage-window {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.window-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  line-height: 1;
+}
+
+.window-name {
+  color: #b8b4c2;
+  font-size: calc(9px * var(--text-scale, 1));
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.usage-window--dead .window-name {
+  color: #ff7182;
+}
+
 .agent-name--codex { color: var(--agent-color, var(--codex-color, #ffd09d)); }
 .agent-name--claude { color: var(--agent-color, var(--claude-color, #d7caff)); }
 .agent-name--opencode { color: var(--agent-color, var(--opencode-color, #b4f0e5)); }
@@ -127,7 +156,7 @@ body {
 .usage-bar {
   width: 100%;
   height: var(--bar-height, 7px);
-  margin-top: 5px;
+  margin-top: 4px;
   overflow: hidden;
   border-radius: 99px;
   background: var(--track);
@@ -167,7 +196,7 @@ body {
 
 .row-meta {
   min-height: 13px;
-  margin: 6px 0 0;
+  margin: 5px 0 0;
   overflow: hidden;
   color: #b8b4c2;
   font-size: calc(10px * var(--text-scale, 1));

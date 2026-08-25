@@ -33,12 +33,25 @@ let latest = {
 };
 let pollInFlight = null;
 
-function unavailable(error, { model = null, effort = null, detected = false } = {}) {
-  return { available: false, usedPercent: null, resetAt: null, resetLabel: null, model, effort, detected, error };
+function unavailable(error, { model = null, effort = null, detected = false, windows = {} } = {}) {
+  return { available: false, usedPercent: null, resetAt: null, resetLabel: null, windows, model, effort, detected, error };
 }
 
 function finiteNumber(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function parseCodexWindow(window, label) {
+  const usedPercent = finiteNumber(window?.used_percent);
+  const resetAtSeconds = finiteNumber(window?.reset_at);
+
+  return {
+    available: usedPercent !== null,
+    usedPercent,
+    resetAt: resetAtSeconds === null ? null : resetAtSeconds * 1000,
+    resetLabel: null,
+    error: usedPercent === null ? `Codex ${label} usage unavailable` : null,
+  };
 }
 
 async function readCodexAuth() {
@@ -154,17 +167,21 @@ async function fetchCodexUsage() {
     if (!response.ok) return unavailable(`Codex usage unavailable (${response.status})`, profile);
 
     const data = await response.json();
-    const window = data?.rate_limit?.primary_window;
-    const usedPercent = finiteNumber(window?.used_percent);
-    const resetAtSeconds = finiteNumber(window?.reset_at);
+    const windows = {
+      session: parseCodexWindow(data?.rate_limit?.primary_window, "5hr session"),
+      weekly: parseCodexWindow(data?.rate_limit?.secondary_window, "weekly"),
+    };
+    const usedPercent = windows.weekly.usedPercent ?? windows.session.usedPercent;
+    const resetAt = windows.weekly.resetAt ?? windows.session.resetAt;
 
-    if (usedPercent === null) return unavailable("Codex usage not reported yet", profile);
+    if (usedPercent === null) return unavailable("Codex usage not reported yet", { ...profile, windows });
 
     return {
       available: true,
       usedPercent,
-      resetAt: resetAtSeconds === null ? null : resetAtSeconds * 1000,
+      resetAt,
       resetLabel: null,
+      windows,
       ...profile,
     };
   } catch (error) {
@@ -242,7 +259,34 @@ function parseClaudeJson(output) {
 }
 
 function compactResetLabel(label) {
-  return label.replace(/\s+\([^)]*\)\s*$/, "").trim();
+  const trimmed = label.trim();
+  const withoutWrapper = trimmed.endsWith(")") && !trimmed.slice(0, -1).includes("(")
+    ? trimmed.slice(0, -1)
+    : trimmed;
+  return withoutWrapper.replace(/\s+\([^)]*\)\s*$/, "").trim();
+}
+
+function parseClaudeUsageWindow(result, heading, label) {
+  const headingMatch = result.match(heading);
+  if (!headingMatch || headingMatch.index === undefined) {
+    return { available: false, usedPercent: null, resetAt: null, resetLabel: null, error: `Claude ${label} usage unavailable` };
+  }
+
+  const sectionStart = headingMatch.index + headingMatch[0].length;
+  const remainder = result.slice(sectionStart);
+  const nextHeading = remainder.search(/\bCurrent\s+(?:session|week)\b/i);
+  const section = remainder.slice(0, nextHeading === -1 ? remainder.length : nextHeading);
+  const usedMatch = section.match(/([\d.]+)%\s*used/i);
+  const usedPercent = usedMatch ? finiteNumber(Number(usedMatch[1])) : null;
+  const resetMatch = section.match(/\bresets?\s+([^\r\n]+)/i);
+
+  return {
+    available: usedPercent !== null,
+    usedPercent,
+    resetAt: null,
+    resetLabel: resetMatch ? compactResetLabel(resetMatch[1]) : null,
+    error: usedPercent === null ? `Claude ${label} usage unavailable` : null,
+  };
 }
 
 function extractModelLabel(text) {
@@ -269,19 +313,24 @@ async function fetchClaudeUsage() {
   const profile = await readClaudeProfile();
   const output = await runClaudeUsageCommand();
   const payload = parseClaudeJson(output);
-  const result = typeof payload?.result === "string" ? payload.result : "";
-  const match = result.match(/Current session:\s*([\d.]+)%\s*used.*?resets\s+([^\r\n]+)/i);
+  const result = typeof payload?.result === "string" ? stripAnsi(payload.result) : "";
+  const windows = {
+    session: parseClaudeUsageWindow(result, /Current\s+session(?:\s*\([^)]*\))?\s*:?\s*/i, "5hr session"),
+    weekly: parseClaudeUsageWindow(result, /Current\s+week\s*\(\s*all\s+models\s*\)\s*:?\s*/i, "weekly"),
+  };
+  const usedPercent = windows.session.usedPercent ?? windows.weekly.usedPercent;
   const model = extractModelLabel(result) ?? profile.model;
   const effort = extractEffortLabel(result) ?? profile.effort;
   const metadata = { model, effort, detected: profile.detected || Boolean(output) };
 
-  if (!match) return unavailable("Claude session usage unavailable", metadata);
+  if (usedPercent === null) return unavailable("Claude usage unavailable", { ...metadata, windows });
 
   return {
     available: true,
-    usedPercent: Number(match[1]),
+    usedPercent,
     resetAt: null,
-    resetLabel: compactResetLabel(match[2]),
+    resetLabel: windows.session.resetLabel ?? windows.weekly.resetLabel,
+    windows,
     ...metadata,
   };
 }

@@ -20,6 +20,7 @@ type AgentId =
   | "crush";
 
 type AgentColorKey = "codexColor" | "claudeColor" | "opencodeColor";
+type UsageWindowId = "session" | "weekly";
 
 type AgentConfig = {
   id: AgentId;
@@ -36,10 +37,19 @@ type AgentUsage = {
   usedPercent: number | null;
   resetAt: number | null;
   resetLabel: string | null;
+  windows: Partial<Record<UsageWindowId, UsageWindow>>;
   model: string | null;
   effort: string | null;
   detected: boolean;
-  error?: string;
+  error?: string | null;
+};
+
+type UsageWindow = {
+  available: boolean;
+  usedPercent: number | null;
+  resetAt: number | null;
+  resetLabel: string | null;
+  error?: string | null;
 };
 
 type UsageResponse = {
@@ -62,8 +72,8 @@ type AppearanceState = {
 const BRIDGE_URL = "http://127.0.0.1:4318/api/usage";
 
 const AGENT_CONFIG: readonly AgentConfig[] = [
-  { id: "codex", name: "CODEX", period: "Weekly", color: "#f2a65a", colorKey: "codexColor", core: true, defaultVisible: true },
-  { id: "claude", name: "CLAUDE", period: "Session", color: "#b69bff", colorKey: "claudeColor", core: true, defaultVisible: true },
+  { id: "codex", name: "CODEX", period: "5hr + Weekly", color: "#f2a65a", colorKey: "codexColor", core: true, defaultVisible: true },
+  { id: "claude", name: "CLAUDE", period: "5hr + Weekly", color: "#b69bff", colorKey: "claudeColor", core: true, defaultVisible: true },
   { id: "opencode", name: "OPENCODE", period: "Stats", color: "#69d4c6", colorKey: "opencodeColor", core: false, defaultVisible: false },
   { id: "gemini", name: "GEMINI", period: "Stats", color: "#78a9ff", colorKey: null, core: false, defaultVisible: false },
   { id: "qwen", name: "QWEN", period: "Stats", color: "#67e8f9", colorKey: null, core: false, defaultVisible: false },
@@ -83,8 +93,12 @@ function createAgentFlags(value: boolean) {
   return Object.fromEntries(AGENT_CONFIG.map((agent) => [agent.id, value])) as Record<AgentId, boolean>;
 }
 
+function createEmptyUsageWindow(): UsageWindow {
+  return { available: false, usedPercent: null, resetAt: null, resetLabel: null };
+}
+
 function createEmptyAgentUsage(): AgentUsage {
-  return { available: false, usedPercent: null, resetAt: null, resetLabel: null, model: null, effort: null, detected: false };
+  return { available: false, usedPercent: null, resetAt: null, resetLabel: null, windows: {}, model: null, effort: null, detected: false };
 }
 
 const EMPTY_USAGE: UsageResponse = {
@@ -117,7 +131,20 @@ function normalizeUsageResponse(value: unknown): UsageResponse {
   for (const agent of AGENT_CONFIG) {
     const candidate = raw[agent.id];
     if (candidate && typeof candidate === "object") {
-      next[agent.id] = { ...EMPTY_USAGE[agent.id], ...(candidate as Partial<AgentUsage>) };
+      const candidateRecord = candidate as Record<string, unknown>;
+      const rawWindows = candidateRecord.windows && typeof candidateRecord.windows === "object"
+        ? candidateRecord.windows as Record<string, unknown>
+        : {};
+      const windows: Partial<Record<UsageWindowId, UsageWindow>> = {};
+
+      for (const id of ["session", "weekly"] as const) {
+        const window = rawWindows[id];
+        if (window && typeof window === "object") {
+          windows[id] = { ...createEmptyUsageWindow(), ...(window as Partial<UsageWindow>) };
+        }
+      }
+
+      next[agent.id] = { ...EMPTY_USAGE[agent.id], ...(candidate as Partial<AgentUsage>), windows };
     }
   }
 
@@ -176,57 +203,117 @@ function formatCountdown(resetAt: number | null, now: number) {
   return `resets in ${minutes}m`;
 }
 
-function formatResetText(id: AgentId, usage: AgentUsage, now: number) {
-  if (id === "codex") return `weekly · ${formatCountdown(usage.resetAt, now)}`;
-  if (id === "claude") return `session · ${usage.resetLabel ?? formatCountdown(usage.resetAt, now)}`;
+type DisplayUsageWindow = {
+  id: UsageWindowId | "default";
+  label: string;
+  usage: UsageWindow;
+};
+
+function getDisplayWindows(agent: AgentConfig, usage: AgentUsage): DisplayUsageWindow[] {
+  if (agent.core) {
+    return ([
+      ["session", "5hr Session"],
+      ["weekly", "Weekly"],
+    ] as const).map(([id, label]) => ({
+      id,
+      label,
+      usage: usage.windows[id] ?? { ...createEmptyUsageWindow(), error: `${agent.name} ${label.toLowerCase()} usage unavailable` },
+    }));
+  }
+
+  return [{
+    id: "default",
+    label: agent.period,
+    usage: {
+      available: usage.available,
+      usedPercent: usage.usedPercent,
+      resetAt: usage.resetAt,
+      resetLabel: usage.resetLabel,
+      error: usage.error,
+    },
+  }];
+}
+
+function formatWindowResetText(id: UsageWindowId | "default", usage: UsageWindow, now: number) {
+  if (id === "session") return `5hr session - ${usage.resetLabel ?? formatCountdown(usage.resetAt, now)}`;
+  if (id === "weekly") return `weekly - ${usage.resetLabel ?? formatCountdown(usage.resetAt, now)}`;
   return usage.resetLabel ?? "usage limit unavailable";
 }
 
-function isOutOfUsage(usage: AgentUsage) {
+function isUsageWindowOutOfUsage(usage: UsageWindow) {
   return usage.usedPercent !== null && usage.usedPercent >= 100;
 }
 
+function isOutOfUsage(usage: AgentUsage) {
+  const windows = Object.values(usage.windows);
+  return windows.length > 0
+    ? windows.some(isUsageWindowOutOfUsage)
+    : usage.usedPercent !== null && usage.usedPercent >= 100;
+}
+
 function UsageRow({
-  name,
-  period,
-  accent,
+  agent,
   accentColor,
   usage,
-  resetText,
+  now,
   testOutOfUsage,
 }: {
-  name: string;
-  period: string;
-  accent: AgentId;
+  agent: AgentConfig;
   accentColor: string;
   usage: AgentUsage;
-  resetText: string;
+  now: number;
   testOutOfUsage: boolean;
 }) {
-  const outOfUsage = testOutOfUsage || isOutOfUsage(usage);
-  const value = outOfUsage ? 100 : usage.usedPercent === null ? 0 : Math.min(100, Math.max(0, usage.usedPercent));
-  const percent = outOfUsage ? "100%" : usage.usedPercent === null ? "--" : `${Math.round(usage.usedPercent)}%`;
+  const windows = getDisplayWindows(agent, usage);
+  const outOfUsage = testOutOfUsage || windows.some(({ usage: windowUsage }) => isUsageWindowOutOfUsage(windowUsage));
 
   return (
-    <section className={`usage-row ${outOfUsage ? "usage-row--dead" : ""}`} style={{ "--agent-color": accentColor } as CSSProperties} aria-label={`${name} usage`}>
+    <section className={`usage-row ${outOfUsage ? "usage-row--dead" : ""}`} style={{ "--agent-color": accentColor } as CSSProperties} aria-label={`${agent.name} usage`}>
       <div className="row-label">
-        <span className={`agent-name agent-name--${accent}`}>
+        <span className={`agent-name agent-name--${agent.id}`}>
           <span className="agent-dot" />
-          {name}
-          <span className="agent-period">({period})</span>
+          {agent.name}
+          <span className="agent-period">({agent.period})</span>
         </span>
-        <span className="row-percent">{percent}</span>
       </div>
       <p className={`row-model ${outOfUsage ? "row-model--dead" : ""}`}>
         {usage.model ?? "model unknown"}
-        {usage.effort ? <span className="row-model__effort"> · effort {usage.effort}</span> : null}
+        {usage.effort ? <span className="row-model__effort"> - effort {usage.effort}</span> : null}
       </p>
-      <div className={`usage-bar ${outOfUsage ? "usage-bar--dead" : ""}`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={outOfUsage ? 100 : usage.usedPercent ?? 0} aria-label={`${name} usage percentage`}>
-        <span className={`usage-bar__fill usage-bar__fill--${accent} ${outOfUsage ? "usage-bar__fill--dead" : usage.available ? "" : "usage-bar__fill--offline"}`} style={{ width: `${value}%` }} />
+      <div className="usage-windows">
+        {windows.map((displayWindow) => {
+          const windowOutOfUsage = testOutOfUsage || isUsageWindowOutOfUsage(displayWindow.usage);
+          const value = windowOutOfUsage
+            ? 100
+            : displayWindow.usage.usedPercent === null
+              ? 0
+              : Math.min(100, Math.max(0, displayWindow.usage.usedPercent));
+          const percent = windowOutOfUsage
+            ? "100%"
+            : displayWindow.usage.usedPercent === null
+              ? "--"
+              : `${Math.round(displayWindow.usage.usedPercent)}%`;
+
+          return (
+            <div className={`usage-window ${windowOutOfUsage ? "usage-window--dead" : ""}`} key={displayWindow.id}>
+              <div className="window-label">
+                <span className="window-name">{displayWindow.label}</span>
+                <span className="row-percent">{percent}</span>
+              </div>
+              <div className={`usage-bar ${windowOutOfUsage ? "usage-bar--dead" : ""}`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={windowOutOfUsage ? 100 : displayWindow.usage.usedPercent ?? 0} aria-label={`${agent.name} ${displayWindow.label} usage percentage`}>
+                <span className={`usage-bar__fill usage-bar__fill--${agent.id} ${windowOutOfUsage ? "usage-bar__fill--dead" : displayWindow.usage.available ? "" : "usage-bar__fill--offline"}`} style={{ width: `${value}%` }} />
+              </div>
+              <p className={`row-meta ${windowOutOfUsage ? "row-meta--dead" : ""}`}>
+                {windowOutOfUsage
+                  ? "OUT OF USAGE!"
+                  : displayWindow.usage.available
+                    ? formatWindowResetText(displayWindow.id, displayWindow.usage, now)
+                    : displayWindow.usage.error ?? usage.error ?? (usage.detected ? "usage percentage unavailable" : "localhost bridge offline")}
+              </p>
+            </div>
+          );
+        })}
       </div>
-      <p className={`row-meta ${outOfUsage ? "row-meta--dead" : ""}`}>
-        {outOfUsage ? "OUT OF USAGE!" : usage.available ? resetText : usage.error ?? (usage.detected ? "usage percentage unavailable" : "localhost bridge offline")}
-      </p>
     </section>
   );
 }
@@ -491,12 +578,10 @@ export default function Home() {
         {visibleAgents.map((agent) => (
           <UsageRow
             key={agent.id}
-            name={agent.name}
-            period={agent.period}
-            accent={agent.id}
+            agent={agent}
             accentColor={getAgentColor(agent, appearance)}
             usage={usage[agent.id]}
-            resetText={formatResetText(agent.id, usage[agent.id], now)}
+            now={now}
             testOutOfUsage={testOutOfUsage[agent.id]}
           />
         ))}

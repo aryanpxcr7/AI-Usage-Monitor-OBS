@@ -27,8 +27,8 @@ test("server-renders the compact local overlay", async () => {
   assert.match(html, /QWEN/);
   assert.match(html, /COPILOT/);
   assert.match(html, /OLLAMA/);
+  assert.match(html, /5hr Session/);
   assert.match(html, /Weekly/);
-  assert.match(html, /Session/);
   assert.match(html, /Realtime/);
   assert.match(html, /Overlay settings/);
   assert.match(html, /Background opacity/);
@@ -57,6 +57,9 @@ test("keeps provider credentials in the localhost bridge", async () => {
   assert.match(page, /period/);
   assert.match(page, /visibleAgents/);
   assert.match(page, /row-model/);
+  assert.match(page, /windows/);
+  assert.match(page, /5hr Session/);
+  assert.match(page, /Weekly/);
   assert.match(page, /effort/);
   assert.match(page, /OUT OF USAGE!/);
   assert.match(page, /AudioContext/);
@@ -67,6 +70,9 @@ test("keeps provider credentials in the localhost bridge", async () => {
   assert.match(styles, /\.color-preset/);
   assert.match(styles, /text-rendering:\s*optimizeLegibility/);
   assert.match(bridge, /backend-api\/wham\/usage/);
+  assert.match(bridge, /primary_window/);
+  assert.match(bridge, /secondary_window/);
+  assert.match(bridge, /Current\\s\+week/);
   assert.match(bridge, /claude/);
   assert.match(bridge, /readConfiguredValue/);
   assert.match(bridge, /readCodexProfile/);

@@ -33,8 +33,8 @@ When a visible agent reaches 100%, its bar switches to a red dead state, shows *
 
 ## What it does
 
-- Tracks Codex weekly quota and Claude session usage in a compact AI limit overlay.
-- Shows live Codex weekly usage and Claude session usage.
+- Tracks Codex and Claude 5-hour session and weekly quotas in a compact AI limit overlay.
+- Shows live session and weekly usage percentages for Codex and Claude.
 - Displays reset information, model names, and effort levels.
 - Detects supported local AI tools and lets you choose which rows to show.
 - Includes a limit alert beep/siren and OBS-friendly appearance settings.
@@ -70,7 +70,7 @@ It works as a local AI quota tracker, coding-agent usage dashboard, or transpare
 
 The bridge checks for Codex, Claude, OpenCode, Gemini CLI, Qwen Code, Copilot CLI, Amazon Q, Aider, Cursor Agent, Goose, Ollama, LM Studio, Kiro CLI, Mistral Vibe, and Crush.
 
-Codex and Claude currently provide percentage usage. Other detected tools show their model/configuration when available and do not display made-up quota percentages.
+Codex and Claude provide 5-hour session and weekly percentage usage. Other detected tools show their model/configuration when available and do not display made-up quota percentages.
 
 ## Contributing
 
